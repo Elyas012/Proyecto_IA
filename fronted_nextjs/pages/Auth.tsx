@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock, Mail, User, Shield, GraduationCap, Users, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
+import axios from 'axios';
 
 
 interface AuthProps {
@@ -115,15 +116,27 @@ export function Auth({ onLoginSuccess, onBack }: AuthProps) {
       return;
     }
 
-    // Simulación de login exitoso
+    // Call backend login endpoint
     setErrors({});
-    setSuccessMessage("Inicio de sesión exitoso. Redirigiendo...");
-    console.log("Login:", loginData);
-    
-    // Simular redirección después de 1 segundo
-    setTimeout(() => {
+    setSuccessMessage("Iniciando sesión...");
+    axios.post('http://localhost:8000/api/auth/login/', {
+      email: loginData.email,
+      password: loginData.password,
+    })
+    .then(response => {
+      const token = response.data?.token;
+      if (token) {
+        localStorage.setItem('authToken', token);
+      }
+      setSuccessMessage('Inicio de sesión exitoso. Redirigiendo...');
       onLoginSuccess?.("Estudiante");
-    }, 1000);
+    })
+    .catch(err => {
+      console.error('Login error', err);
+      const msg = err.response?.data?.detail || 'Error en las credenciales';
+      setErrors({ loginGeneral: msg });
+      setSuccessMessage('');
+    });
   };
 
   // Manejar registro
@@ -165,16 +178,28 @@ export function Auth({ onLoginSuccess, onBack }: AuthProps) {
       return;
     }
 
-    // Simulación de registro exitoso
-    const role = determineRole(registerData.userId);
+    // Call backend register endpoint
     setErrors({});
-    setSuccessMessage(`Registro exitoso como ${role}. Redirigiendo al panel...`);
-    console.log("Registro:", { ...registerData, role });
-    
-    // Simular redirección después de 1 segundo
-    setTimeout(() => {
+    setSuccessMessage('Registrando...');
+    axios.post('http://localhost:8000/api/auth/register/', {
+      fullName: registerData.fullName,
+      email: registerData.email,
+      password: registerData.password,
+      userId: registerData.userId,
+    })
+    .then(response => {
+      const token = response.data?.token;
+      if (token) localStorage.setItem('authToken', token);
+      const role = determineRole(registerData.userId);
+      setSuccessMessage(`Registro exitoso como ${role}. Redirigiendo al panel...`);
       onLoginSuccess?.(role);
-    }, 1000);
+    })
+    .catch(err => {
+      console.error('Register error', err);
+      const msg = err.response?.data?.detail || 'Error en el registro';
+      setErrors({ registerGeneral: msg });
+      setSuccessMessage('');
+    });
   };
 
   const currentRole = determineRole(registerData.userId);
