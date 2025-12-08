@@ -9,7 +9,7 @@
     res: NextApiResponse
     ) {
     await dbConnect();
-
+    // Mensajes de prueba para verificar la conexión a MongoDB Atlas
     if (req.method === "POST") {
         const doc = await Test.create({ message: "Hola Mongo Atlas" });
         return res.status(201).json(doc);
