@@ -119,11 +119,11 @@ export function Auth({ onLoginSuccess, onBack }: AuthProps) {
     // Call backend login endpoint
     setErrors({});
     setSuccessMessage("Iniciando sesión...");
-    axios.post('http://localhost:8000/api/auth/login/', {
-      email: loginData.email,
-      password: loginData.password,
-    })
-    .then(response => {
+      axios.post('/api/auth/login', {
+        email: loginData.email,
+        password: loginData.password,
+      })
+      .then(response => {
       const token = response.data?.token;
       if (token) {
         localStorage.setItem('authToken', token);
@@ -181,7 +181,7 @@ export function Auth({ onLoginSuccess, onBack }: AuthProps) {
     // Call backend register endpoint
     setErrors({});
     setSuccessMessage('Registrando...');
-    axios.post('http://localhost:8000/api/auth/register/', {
+    axios.post('/api/auth/register', {
       fullName: registerData.fullName,
       email: registerData.email,
       password: registerData.password,
