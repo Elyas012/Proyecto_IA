@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -62,92 +63,30 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);
+  const [users, setUsers] = useState<User[]>([]);
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
 
-  // Mock data - Usuarios del sistema
-  const users: User[] = [
-    {
-      id: "ADM001",
-      name: "Carlos Administrador",
-      email: "carlos.admin@espe.edu.ec",
-      role: "Administrador",
-      status: "active",
-      lastConnection: "Hace 5 minutos",
-      registrationDate: "2025-01-15",
-    },
-    {
-      id: "DOC001",
-      name: "María García",
-      email: "maria.garcia@espe.edu.ec",
-      role: "Docente",
-      status: "active",
-      lastConnection: "Hace 10 minutos",
-      registrationDate: "2025-02-01",
-    },
-    {
-      id: "DOC002",
-      name: "Roberto Pérez",
-      email: "roberto.perez@espe.edu.ec",
-      role: "Docente",
-      status: "active",
-      lastConnection: "Hace 2 horas",
-      registrationDate: "2025-02-03",
-    },
-    {
-      id: "EST001",
-      name: "Juan Pérez",
-      email: "juan.perez@espe.edu.ec",
-      role: "Estudiante",
-      status: "active",
-      lastConnection: "Hace 15 minutos",
-      registrationDate: "2025-03-01",
-    },
-    {
-      id: "EST002",
-      name: "María López",
-      email: "maria.lopez@espe.edu.ec",
-      role: "Estudiante",
-      status: "active",
-      lastConnection: "Hace 20 minutos",
-      registrationDate: "2025-03-01",
-    },
-    {
-      id: "EST003",
-      name: "Ana Martínez",
-      email: "ana.martinez@espe.edu.ec",
-      role: "Estudiante",
-      status: "inactive",
-      lastConnection: "Hace 3 días",
-      registrationDate: "2025-03-02",
-    },
-  ];
-
-  // Mock data - Sesiones activas
-  const activeSessions: ActiveSession[] = [
-    {
-      id: "SES001",
-      className: "Algoritmos y Estructuras de Datos",
-      teacher: "María García",
-      studentsCount: 25,
-      startTime: "10:00 AM",
-      averageAttention: 87,
-    },
-    {
-      id: "SES002",
-      className: "Bases de Datos",
-      teacher: "Roberto Pérez",
-      studentsCount: 30,
-      startTime: "2:00 PM",
-      averageAttention: 82,
-    },
-    {
-      id: "SES003",
-      className: "Inteligencia Artificial",
-      teacher: "María García",
-      studentsCount: 20,
-      startTime: "4:00 PM",
-      averageAttention: 90,
-    },
-  ];
+  // Cargar usuarios desde la API
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const [usersRes, sessionsRes] = await Promise.all([
+          axios.get('http://localhost:8000/api/admin/users/', {
+            headers: { 'Authorization': `Token ${token}` }
+          }),
+          axios.get('http://localhost:8000/api/admin/active-sessions/', {
+            headers: { 'Authorization': `Token ${token}` }
+          })
+        ]);
+        setUsers(usersRes.data);
+        setActiveSessions(sessionsRes.data);
+      } catch (error) {
+        console.error('Error loading admin data:', error);
+      }
+    };
+    loadData();
+  }, []);
 
   // Mock data - Distribución de roles
   const roleDistribution = [

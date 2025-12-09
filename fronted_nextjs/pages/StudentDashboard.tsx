@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import axios from "axios";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Progress } from "../components/ui/progress";
@@ -52,8 +53,9 @@ interface StudentDashboardProps {
 }
 
 export function StudentDashboard({ onLogout }: StudentDashboardProps) {
-  const [currentView, setCurrentView] = useState<ViewType>("classes"); // Inicia en "classes"
+  const [currentView, setCurrentView] = useState<ViewType>("classes");
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isFeaturesExtracted, setIsFeaturesExtracted] = useState(false);
@@ -68,36 +70,51 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   // Estados para Pomodoro
   const [pomodoroSession, setPomodoroSession] = useState(1);
   const [pomodoroPhase, setPomodoroPhase] = useState<PomodoroPhase>("trabajo");
-  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60); // 25 minutos en segundos
+  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
   const [isPomodoroActive, setIsPomodoroActive] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Lista de cursos disponibles
-  const courses: Course[] = [
-    {
-      id: "1",
-      name: "Algoritmos y Estructuras de Datos",
-      professor: "Prof. María García",
-      time: "10:00 AM",
-      status: "active"
-    },
-    {
-      id: "2",
-      name: "Bases de Datos",
-      professor: "Prof. Carlos Ruiz",
-      time: "2:00 PM",
-      status: "upcoming"
-    },
-    {
-      id: "3",
-      name: "Inteligencia Artificial",
-      professor: "Prof. Ana Martínez",
-      time: "4:00 PM",
-      status: "upcoming"
-    }
-  ];
+  // Cargar cursos del estudiante desde la API
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const response = await axios.get('http://localhost:8000/api/student/courses/', {
+          headers: { 'Authorization': `Token ${token}` }
+        });
+        setCourses(response.data);
+      } catch (error) {
+        console.error('Error loading courses:', error);
+        // Fallback a cursos estáticos si hay error
+        setCourses([
+          {
+            id: "1",
+            name: "Algoritmos y Estructuras de Datos",
+            professor: "Prof. María García",
+            time: "10:00 AM",
+            status: "active"
+          },
+          {
+            id: "2",
+            name: "Bases de Datos",
+            professor: "Prof. Carlos Ruiz",
+            time: "2:00 PM",
+            status: "upcoming"
+          },
+          {
+            id: "3",
+            name: "Inteligencia Artificial",
+            professor: "Prof. Ana Martínez",
+            time: "4:00 PM",
+            status: "upcoming"
+          }
+        ]);
+      }
+    };
+    loadCourses();
+  }, []);
 
   // Simulación de análisis de atención
   useEffect(() => {

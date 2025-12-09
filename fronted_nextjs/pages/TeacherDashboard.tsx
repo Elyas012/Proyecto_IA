@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -51,90 +52,25 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
 
-  // Mock data - Estudiantes
-  const students: Student[] = [
-    {
-      id: "EST001",
-      name: "Juan Pérez",
-      email: "juan.perez@espe.edu.ec",
-      averageAttention: 87,
-      lastClass: "Hace 2 horas",
-      status: "high",
-      sessionsAttended: 12,
-      totalSessions: 15,
-    },
-    {
-      id: "EST002",
-      name: "María García",
-      email: "maria.garcia@espe.edu.ec",
-      averageAttention: 92,
-      lastClass: "Hace 2 horas",
-      status: "high",
-      sessionsAttended: 14,
-      totalSessions: 15,
-    },
-    {
-      id: "EST003",
-      name: "Carlos Ruiz",
-      email: "carlos.ruiz@espe.edu.ec",
-      averageAttention: 65,
-      lastClass: "Hace 2 horas",
-      status: "medium",
-      sessionsAttended: 11,
-      totalSessions: 15,
-    },
-    {
-      id: "EST004",
-      name: "Ana Martínez",
-      email: "ana.martinez@espe.edu.ec",
-      averageAttention: 78,
-      lastClass: "Hace 2 horas",
-      status: "medium",
-      sessionsAttended: 13,
-      totalSessions: 15,
-    },
-    {
-      id: "EST005",
-      name: "Pedro López",
-      email: "pedro.lopez@espe.edu.ec",
-      averageAttention: 45,
-      lastClass: "Hace 3 días",
-      status: "low",
-      sessionsAttended: 8,
-      totalSessions: 15,
-    },
-    {
-      id: "EST006",
-      name: "Laura Sánchez",
-      email: "laura.sanchez@espe.edu.ec",
-      averageAttention: 89,
-      lastClass: "Hace 2 horas",
-      status: "high",
-      sessionsAttended: 15,
-      totalSessions: 15,
-    },
-    {
-      id: "EST007",
-      name: "Diego Torres",
-      email: "diego.torres@espe.edu.ec",
-      averageAttention: 58,
-      lastClass: "Hace 1 día",
-      status: "medium",
-      sessionsAttended: 10,
-      totalSessions: 15,
-    },
-    {
-      id: "EST008",
-      name: "Sofia Ramírez",
-      email: "sofia.ramirez@espe.edu.ec",
-      averageAttention: 94,
-      lastClass: "Hace 2 horas",
-      status: "high",
-      sessionsAttended: 15,
-      totalSessions: 15,
-    },
-  ];
+  // Cargar estudiantes desde la API
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const response = await axios.get('http://localhost:8000/api/teacher/students/', {
+          headers: { 'Authorization': `Token ${token}` }
+        });
+        setStudents(response.data);
+      } catch (error) {
+        console.error('Error loading students:', error);
+        // Fallback a datos estáticos si hay error
+        setStudents([] );
+      }
+    };
+    loadStudents();
+  }, []);
 
   // Mock data - Distribución de atención del grupo
   const attentionDistribution = [
