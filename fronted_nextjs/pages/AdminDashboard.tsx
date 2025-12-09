@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -72,12 +72,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       try {
         const token = localStorage.getItem('authToken');
         const [usersRes, sessionsRes] = await Promise.all([
-          axios.get('http://localhost:8000/api/admin/users/', {
-            headers: { 'Authorization': `Token ${token}` }
-          }),
-          axios.get('http://localhost:8000/api/admin/active-sessions/', {
-            headers: { 'Authorization': `Token ${token}` }
-          })
+          api.get('/admin/users/'),
+          api.get('/admin/active-sessions/')
         ]);
         setUsers(usersRes.data);
         setActiveSessions(sessionsRes.data);

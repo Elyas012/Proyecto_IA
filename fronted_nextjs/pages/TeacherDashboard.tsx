@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -59,9 +59,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     const loadStudents = async () => {
       try {
         const token = localStorage.getItem('authToken');
-        const response = await axios.get('http://localhost:8000/api/teacher/students/', {
-          headers: { 'Authorization': `Token ${token}` }
-        });
+        const response = await api.get('/teacher/students/');
         setStudents(response.data);
       } catch (error) {
         console.error('Error loading students:', error);
