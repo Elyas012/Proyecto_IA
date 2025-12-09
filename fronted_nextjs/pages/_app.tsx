@@ -27,16 +27,21 @@ export default function App() {
     }} onBack={() => setCurrentPage("home")} />;
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    setCurrentPage("home");
+  };
+
   if (currentPage === "student-dashboard") {
-    return <StudentDashboard />;
+    return <StudentDashboard onLogout={handleLogout} />;
   }
 
   if (currentPage === "teacher-dashboard") {
-    return <TeacherDashboard />;
+    return <TeacherDashboard onLogout={handleLogout} />;
   }
 
   if (currentPage === "admin-dashboard") {
-    return <AdminDashboard />;
+    return <AdminDashboard onLogout={handleLogout} />;
   }
 
   const fadeInUp = {

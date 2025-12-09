@@ -41,7 +41,7 @@ interface User {
   registrationDate: string;
 }
 
-interface ActiveSession {
+interface Class {
   id: string;
   className: string;
   teacher: string;
@@ -50,7 +50,11 @@ interface ActiveSession {
   averageAttention: number;
 }
 
-export function AdminDashboard() {
+interface AdminDashboardProps {
+  onLogout?: () => void;
+}
+
+export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [currentView, setCurrentView] = useState<ViewType>("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -276,7 +280,10 @@ export function AdminDashboard() {
 
           <div className="mt-auto pt-8">
             <Separator className="mb-4 bg-gray-700" />
-            <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors">
+            <button 
+              onClick={onLogout}
+              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors"
+            >
               <LogOut className="w-5 h-5" />
               <span>Cerrar Sesión</span>
             </button>

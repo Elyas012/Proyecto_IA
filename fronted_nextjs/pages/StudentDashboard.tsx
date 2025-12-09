@@ -47,7 +47,11 @@ interface Course {
   status: "active" | "upcoming" | "completed";
 }
 
-export function StudentDashboard() {
+interface StudentDashboardProps {
+  onLogout?: () => void;
+}
+
+export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [currentView, setCurrentView] = useState<ViewType>("classes"); // Inicia en "classes"
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -340,7 +344,10 @@ export function StudentDashboard() {
 
           <div className="mt-auto pt-8">
             <Separator className="mb-4 bg-gray-700" />
-            <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors">
+            <button 
+              onClick={onLogout}
+              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors"
+            >
               <LogOut className="w-5 h-5" />
               <span>Cerrar Sesión</span>
             </button>
