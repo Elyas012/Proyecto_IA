@@ -49,6 +49,12 @@ class ClassSessionSerializer(serializers.ModelSerializer):
         fields = ['id', 'course', 'course_id', 'teacher', 'teacher_id', 'title', 'date', 'time', 'duration_minutes', 'status', 'created_at', 'attention_records']
 
 
+class PomodoroEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = __import__('api.models', fromlist=['PomodoroEvent']).PomodoroEvent
+        fields = ['id', 'student', 'class_session', 'event_type', 'reason', 'timestamp']
+
+
 class StudentCourseSerializer(serializers.ModelSerializer):
     course = CourseSerializer(read_only=True)
     student = UserSerializer(read_only=True)

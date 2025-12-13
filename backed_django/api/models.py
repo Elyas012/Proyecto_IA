@@ -89,3 +89,23 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} ({self.role})"
 
+
+class PomodoroEvent(models.Model):
+    EVENT_TYPES = [
+        ('auto_pause', 'Auto Pause'),
+        ('manual_pause', 'Manual Pause'),
+        ('start', 'Start'),
+        ('end', 'End'),
+    ]
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='pomodoro_events')
+    class_session = models.ForeignKey(ClassSession, on_delete=models.CASCADE, related_name='pomodoro_events')
+    event_type = models.CharField(max_length=30, choices=EVENT_TYPES)
+    reason = models.CharField(max_length=255, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.timestamp} - {self.student.username} - {self.event_type}" 
+

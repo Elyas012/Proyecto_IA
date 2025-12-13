@@ -38,3 +38,32 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+
+---
+
+Project additions (AI Pomodoro integration)
+
+- The project now includes a client-side integration using MediaPipe Face Mesh and TensorFlow.js for real-time attention estimation.
+Run `npm install` to add new dependencies (`@mediapipe/face_mesh`, `@tensorflow/tfjs`, etc.). Note: `camera_utils` is not required; the project uses a `requestAnimationFrame` loop for feeding frames to MediaPipe.
+The `WebcamCapture` component (components/WebcamCapture.tsx) extracts facial features and runs a TensorFlow.js model to compute an attention score. Place a pre-trained TF.js Layers format model under `public/models/attention_model/model.json` or set `modelUrl` prop to a custom URL. For local development you can generate a demo model with:
+
+```bash
+npm install @tensorflow/tfjs-node --save-dev
+node scripts/create_demo_model.js
+```
+
+This will create the model files under `public/models/attention_model/` so the app can load them during development.
+
+Development authentication helper
+---------------------------------
+
+To make testing authenticated endpoints easier, you can set a dev token in `fronted_nextjs/.env.local`:
+
+```
+NEXT_PUBLIC_DEV_TOKEN=4db18195974982419d2743e6c10a081b85740742
+```
+
+On the `StudentDashboard` page there's an `Auth Dev Token` button that will inject this token into `localStorage` and retry the courses request.
+- The Pomodoro timer is adaptive: only "effective" focused time (attention >= 50) is counted; sustained distraction advances the break automatically.
+- For production, replace the demo model with trained weights and improve feature selection and thresholds.
+

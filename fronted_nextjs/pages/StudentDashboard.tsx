@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
 import { StudentReport } from "./StudentReport";
+import WebcamCapture from "../components/WebcamCapture";
+import { Toaster, toast } from 'sonner';
 import { motion } from "framer-motion";
 
 
@@ -63,9 +65,13 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [attentionLevel, setAttentionLevel] = useState<AttentionLevel>("high");
   const [attentionScore, setAttentionScore] = useState(85);
   const [showLowAttentionAlert, setShowLowAttentionAlert] = useState(false);
+  const [showMediumAttentionAlert, setShowMediumAttentionAlert] = useState(false);
+  const [consecutiveLow, setConsecutiveLow] = useState(0);
+  const lastReportedRef = useRef<number | null>(null);
   const [attentionHistory, setAttentionHistory] = useState<AttentionData[]>([
     { time: "0s", attention: 85 },
   ]);
+  const [autoPauseTriggered, setAutoPauseTriggered] = useState(false);
   
   // Estados para Pomodoro
   const [pomodoroSession, setPomodoroSession] = useState(1);
@@ -77,82 +83,74 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const streamRef = useRef<MediaStream | null>(null);
 
   // Cargar cursos del estudiante desde la API
+  const loadCourses = async () => {
+    try {
+      const response = await api.get('/student/courses/');
+      setCourses(response.data);
+    } catch (error) {
+      console.error('Error loading courses:', error);
+      toast.error('No autenticado o error al cargar cursos');
+      // Fallback a cursos estáticos si hay error
+      setCourses([
+        {
+          id: "1",
+          name: "Algoritmos y Estructuras de Datos",
+          professor: "Prof. María García",
+          time: "10:00 AM",
+          status: "active"
+        },
+        {
+          id: "2",
+          name: "Bases de Datos",
+          professor: "Prof. Carlos Ruiz",
+          time: "2:00 PM",
+          status: "upcoming"
+        },
+        {
+          id: "3",
+          name: "Inteligencia Artificial",
+          professor: "Prof. Ana Martínez",
+          time: "4:00 PM",
+          status: "upcoming"
+        }
+      ]);
+    }
+  };
+
   useEffect(() => {
-    const loadCourses = async () => {
-      try {
-        const token = localStorage.getItem('authToken');
-        const response = await api.get('/student/courses/');
-        setCourses(response.data);
-      } catch (error) {
-        console.error('Error loading courses:', error);
-        // Fallback a cursos estáticos si hay error
-        setCourses([
-          {
-            id: "1",
-            name: "Algoritmos y Estructuras de Datos",
-            professor: "Prof. María García",
-            time: "10:00 AM",
-            status: "active"
-          },
-          {
-            id: "2",
-            name: "Bases de Datos",
-            professor: "Prof. Carlos Ruiz",
-            time: "2:00 PM",
-            status: "upcoming"
-          },
-          {
-            id: "3",
-            name: "Inteligencia Artificial",
-            professor: "Prof. Ana Martínez",
-            time: "4:00 PM",
-            status: "upcoming"
-          }
-        ]);
+    // Auto-inject dev token from env when available for convenience
+    try {
+      const envToken = process.env.NEXT_PUBLIC_DEV_TOKEN;
+      if (envToken && !localStorage.getItem('authToken')) {
+        localStorage.setItem('authToken', envToken);
       }
-    };
+    } catch (e) {}
     loadCourses();
   }, []);
 
-  // Simulación de análisis de atención
+
+
+  // Record actual attention value to history every 2s while analyzing
   useEffect(() => {
     if (!isAnalyzing || !isFeaturesExtracted) return;
-
     const interval = setInterval(() => {
-      // Simulamos cambios aleatorios en el nivel de atención
-      const newScore = Math.max(20, Math.min(100, attentionScore + (Math.random() - 0.5) * 30));
-      setAttentionScore(Math.round(newScore));
-
-      // Determinar nivel de atención
-      let level: AttentionLevel = "high";
-      if (newScore < 40) {
-        level = "low";
-        setShowLowAttentionAlert(true);
-      } else if (newScore < 70) {
-        level = "medium";
-      } else {
-        setShowLowAttentionAlert(false);
-      }
-      setAttentionLevel(level);
-
-      // Actualizar historial
       const now = new Date();
       const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
       setAttentionHistory(prev => {
-        const newHistory = [...prev, { time: timeStr, attention: Math.round(newScore) }];
-        return newHistory.slice(-20); // Mantener solo los últimos 20 puntos
+        const newHistory = [...prev, { time: timeStr, attention: Math.round(attentionScore) }];
+        return newHistory.slice(-40);
       });
     }, 2000);
-
     return () => clearInterval(interval);
   }, [isAnalyzing, isFeaturesExtracted, attentionScore]);
 
   // Temporizador Pomodoro
   useEffect(() => {
     if (!isPomodoroActive || !isFeaturesExtracted) return;
-
     const interval = setInterval(() => {
       setPomodoroTimeLeft(prev => {
+        // Only decrement when attention is above threshold (valid study time)
+        if (attentionScore < 50) return prev; 
         if (prev <= 1) {
           // Cambiar de fase
           if (pomodoroPhase === "trabajo") {
@@ -176,7 +174,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isPomodoroActive, isFeaturesExtracted, pomodoroPhase, pomodoroSession]);
+  }, [isPomodoroActive, isFeaturesExtracted, pomodoroPhase, pomodoroSession, attentionScore]);
 
   // Formatear tiempo en MM:SS
   const formatPomodoroTime = (seconds: number): string => {
@@ -208,22 +206,15 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
       setIsFeaturesExtracted(false);
       setExtractionProgress(0);
     } else {
-      // Simulación: activar cámara sin acceso real
-      setIsCameraActive(true);
-      
-      // Opcional: Intentar acceder a la cámara real (pero no es obligatorio)
+      // Activar cámara: intentar acceder a la cámara real
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { width: 1280, height: 720 },
-          audio: false 
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false });
+        if (videoRef.current) videoRef.current.srcObject = stream;
         streamRef.current = stream;
+        setIsCameraActive(true);
       } catch (error) {
-        console.log("No se pudo acceder a la cámara real, usando simulación");
-        // No mostramos error, solo activamos el modo simulación
+        console.error('No se pudo acceder a la cámara real', error);
+        alert('No se pudo acceder a la cámara. Verifica permisos y conecta la cámara.');
       }
     }
   };
@@ -241,20 +232,16 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     }
 
     setIsAnalyzing(true);
-    
-    // Simular extracción de features (ojos, boca, etc.)
-    let progress = 0;
-    const extractionInterval = setInterval(() => {
-      progress += 10;
-      setExtractionProgress(progress);
-      
-      if (progress >= 100) {
-        clearInterval(extractionInterval);
-        setIsFeaturesExtracted(true);
-        // Mostrar notificación de éxito
+    // Show progress until features are actually extracted by the model (WebcamCapture will call onFeaturesExtracted)
+    setExtractionProgress(10);
+    const progressInterval = setInterval(() => {
+      setExtractionProgress(p => Math.min(90, p + 10));
+      if (isFeaturesExtracted) {
+        setExtractionProgress(100);
+        clearInterval(progressInterval);
         setTimeout(() => {
           alert("✅ Features extraídos exitosamente!\n\n- Detección de ojos\n- Detección de boca\n- Análisis de expresión facial\n- Postura corporal\n\nPuedes continuar con la clase.");
-        }, 500);
+        }, 300);
       }
     }, 500);
   };
@@ -263,6 +250,50 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     setIsAnalyzing(false);
     setIsFeaturesExtracted(false);
     setExtractionProgress(0);
+  };
+
+  // Handle attention updates coming from WebcamCapture
+  const handleAttentionUpdate = (score: number, level: 'high' | 'medium' | 'low') => {
+    setAttentionScore(score);
+    if (level === 'low') {
+      setShowLowAttentionAlert(true);
+      setShowMediumAttentionAlert(false);
+      setConsecutiveLow(prev => {
+        const val = prev + 1;
+        // If low attention persists for 3 consecutive windows, advance Pomodoro if in work phase
+        if (val >= 3 && pomodoroPhase === 'trabajo' && isPomodoroActive) {
+          setPomodoroTimeLeft(0);
+          setAutoPauseTriggered(true);
+          setTimeout(() => setAutoPauseTriggered(false), 5000);
+          // Record auto-pause event to backend
+          if (selectedCourse && isAnalyzing) {
+            api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'auto_pause', reason: 'sustained_low_attention' }).catch(() => {});
+          }
+          toast('📣 Pausa adelantada automáticamente por distracción', {action: {label: 'OK'}});
+        }
+        return val;
+      });
+    } else if (level === 'medium') {
+      setShowLowAttentionAlert(false);
+      setShowMediumAttentionAlert(true);
+      setConsecutiveLow(0);
+      toast.warning('Nivel de atención moderado — mantente enfocado');
+    } else {
+      setShowLowAttentionAlert(false);
+      setShowMediumAttentionAlert(false);
+      setConsecutiveLow(0);
+    }
+    // Set attention level UI
+    if (score < 40) setAttentionLevel('low');
+    else if (score < 70) setAttentionLevel('medium');
+    else setAttentionLevel('high');
+
+    // Record attention periodically to backend (throttled every 15 seconds)
+    const now = Date.now();
+    if (selectedCourse && isAnalyzing && (!lastReportedRef.current || (now - lastReportedRef.current) > 15000)) {
+      lastReportedRef.current = now;
+      api.post('/student/record-attention/', { class_session_id: selectedCourse.id, attention_score: score, duration_seconds: (score >= 50 ? 15 : 0) }).catch(() => {});
+    }
   };
 
   const getAttentionColor = () => {
@@ -284,6 +315,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
+      <Toaster position="top-right" />
       <div className="flex">
         {/* Sidebar */}
         <aside className="w-64 min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl">
@@ -568,6 +600,17 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                           </motion.div>
                         )}
                         
+                        {isCameraActive && (
+                          <WebcamCapture
+                            videoRef={videoRef}
+                            isAnalyzing={isAnalyzing}
+                            isCameraActive={isCameraActive}
+                            onFeaturesExtracted={setIsFeaturesExtracted}
+                            onAttentionUpdate={handleAttentionUpdate}
+                            classSessionId={selectedCourse?.id}
+                            modelUrl={'/models/attention_model/model.json'}
+                          />
+                        )}
                         <video
                           ref={videoRef}
                           autoPlay
@@ -662,6 +705,25 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                               Activar Cámara
                             </>
                           )}
+                        </Button>
+
+                        <Button
+                          onClick={async () => {
+                            const envToken = process.env.NEXT_PUBLIC_DEV_TOKEN;
+                            if (envToken) {
+                              localStorage.setItem('authToken', envToken);
+                              toast.success('Token de desarrollo cargado en localStorage');
+                            } else {
+                              const t = prompt('Pega aquí el token de API (modo dev)');
+                              if (t) { localStorage.setItem('authToken', t); toast.success('Token guardado'); }
+                            }
+                            // Re-fetch courses now that token might be set
+                            try { await loadCourses(); toast.success('Cursos recargados'); } catch (e) { }
+                          }}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          <span className="mr-2">Auth</span>Dev Token
                         </Button>
 
                         <Button
@@ -797,6 +859,18 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                               {isCameraActive ? "Activa" : "Inactiva"}
                             </Badge>
                           </div>
+                          <div className="flex justify-between text-sm mt-3">
+                            <Button size="sm" onClick={async () => {
+                              if (!selectedCourse) return;
+                              try {
+                                const res = await api.get('/student/pomodoro-metrics/');
+                                const d = res.data;
+                                toast(`📊 Eventos: ${d.total_events} · Pausas auto: ${d.auto_pauses} · Tiempo efectivo: ${Math.round(d.effective_seconds/60)} min`);
+                              } catch (e) {
+                                toast.error('Error al obtener métricas');
+                              }
+                            }}>Ver métricas</Button>
+                          </div>
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Features:</span>
                             <Badge variant={isFeaturesExtracted ? "default" : "secondary"}>
@@ -852,6 +926,17 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                       )}
 
                       {/* Low Attention Alert */}
+                      {showMediumAttentionAlert && isFeaturesExtracted && (
+                        <Alert className="border-yellow-400 bg-yellow-50 animate-pulse">
+                          <AlertCircle className="h-4 w-4 text-yellow-600" />
+                          <AlertDescription className="text-yellow-700">
+                            ⚠️ <strong>Distracción leve</strong>
+                            <br />
+                            Pequeño aviso: intenta recuperar la concentración
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
                       {showLowAttentionAlert && isFeaturesExtracted && (
                         <Alert className="border-red-500 bg-red-50 animate-pulse">
                           <AlertCircle className="h-4 w-4 text-red-600" />
@@ -859,6 +944,23 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                             ⚠️ <strong>Nivel de atención bajo</strong>
                             <br />
                             Intenta concentrarte en la clase
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      {showMediumAttentionAlert && isFeaturesExtracted && (
+                        <Alert className="border-yellow-400 bg-yellow-50 animate-pulse">
+                          <AlertCircle className="h-4 w-4 text-yellow-600" />
+                          <AlertDescription className="text-yellow-700">
+                            ⚠️ Nivel de atención moderado — Mantén el enfoque
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      {autoPauseTriggered && (
+                        <Alert className="border-cyan-400 bg-cyan-50">
+                          <AlertCircle className="h-4 w-4 text-cyan-600" />
+                          <AlertDescription className="text-cyan-700">
+                            🔔 Pausa adelantada automáticamente por distracción sostenida
                           </AlertDescription>
                         </Alert>
                       )}

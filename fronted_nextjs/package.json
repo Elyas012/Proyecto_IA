@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
+    ,
+    "create-demo-model": "node scripts/create_demo_model.js"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
@@ -52,6 +54,9 @@
     "react-resizable-panels": "^3.0.6",
     "recharts": "^3.5.1",
     "sonner": "^2.0.7",
+    "@tensorflow/tfjs": "^4.10.0",
+    "@tensorflow/tfjs-backend-webgl": "^4.10.0",
+    "@mediapipe/face_mesh": "^0.4.1646424915",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2"
   },
@@ -69,5 +74,7 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.17",
     "typescript": "^5"
+    ,
+    "@tensorflow/tfjs-node": "^4.10.0"
   }
 }

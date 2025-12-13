@@ -119,6 +119,7 @@ def record_attention(request):
     """Record attention score for a student in a class."""
     class_session_id = request.data.get('class_session_id')
     attention_score = request.data.get('attention_score')
+    duration_seconds = request.data.get('duration_seconds')
     
     if not class_session_id or attention_score is None:
         return Response({'detail': 'class_session_id and attention_score required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -142,6 +143,13 @@ def record_attention(request):
         attention_score=attention_score,
         attention_level=level
     )
+    # Optional: record effective focused duration in seconds
+    try:
+        if duration_seconds is not None:
+            record.duration_seconds = int(duration_seconds)
+            record.save()
+    except Exception:
+        pass
     
     return Response(AttentionRecordSerializer(record).data, status=status.HTTP_201_CREATED)
 
@@ -176,6 +184,50 @@ def teacher_students(request):
                 }
     
     return Response(list(students_data.values()))
+
+
+# Pomodoro events
+@api_view(['POST', 'GET'])
+@permission_classes([IsAuthenticated])
+def pomodoro_events(request):
+    """Create or fetch pomodoro events for the authenticated student."""
+    if request.method == 'POST':
+        class_session_id = request.data.get('class_session_id')
+        event_type = request.data.get('event_type')
+        reason = request.data.get('reason', '')
+        if not class_session_id or not event_type:
+            return Response({'detail': 'class_session_id and event_type required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            cs = ClassSession.objects.get(id=class_session_id)
+        except ClassSession.DoesNotExist:
+            return Response({'detail': 'Class session not found'}, status=status.HTTP_404_NOT_FOUND)
+        ev = __import__('api.models', fromlist=['PomodoroEvent']).PomodoroEvent.objects.create(
+            student=request.user,
+            class_session=cs,
+            event_type=event_type,
+            reason=reason
+        )
+        return Response({'id': ev.id, 'event_type': ev.event_type, 'timestamp': ev.timestamp}, status=status.HTTP_201_CREATED)
+
+    # GET: return recent events for student
+    events = __import__('api.models', fromlist=['PomodoroEvent']).PomodoroEvent.objects.filter(student=request.user).order_by('-timestamp')[:50]
+    serializer = __import__('api.serializers', fromlist=['PomodoroEventSerializer']).PomodoroEventSerializer(events, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def pomodoro_metrics(request):
+    """Return aggregated pomodoro metrics for the authenticated student."""
+    from django.db.models import Count
+    PomodoroEvent = __import__('api.models', fromlist=['PomodoroEvent']).PomodoroEvent
+    total_events = PomodoroEvent.objects.filter(student=request.user).count()
+    auto_pauses = PomodoroEvent.objects.filter(student=request.user, event_type='auto_pause').count()
+    # effective study time from AttentionRecord
+    from .models import AttentionRecord
+    records = AttentionRecord.objects.filter(student=request.user)
+    total_effective = sum(r.duration_seconds for r in records)
+    return Response({'total_events': total_events, 'auto_pauses': auto_pauses, 'effective_seconds': total_effective})
 
 
 # Admin endpoints
