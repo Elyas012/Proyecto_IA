@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile
+from .models import FeatureRecord
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -35,6 +36,12 @@ class AttentionRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttentionRecord
         fields = ['id', 'student', 'class_session', 'attention_score', 'attention_level', 'timestamp', 'duration_seconds']
+
+
+class FeatureRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FeatureRecord
+        fields = '__all__'
 
 
 class ClassSessionSerializer(serializers.ModelSerializer):

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -30,14 +30,37 @@ export function StudentReport({ onBack }: StudentReportProps) {
   const [selectedSubject, setSelectedSubject] = useState("algorithms");
   const [selectedPeriod, setSelectedPeriod] = useState("month");
 
-  // Mock data - Información del estudiante
-  const studentInfo = {
-    name: "Juan Pérez",
-    id: "EST001",
-    email: "juan.perez@espe.edu.ec",
-    semester: "5to Semestre",
-    career: "Ingeniería en Software",
+  // Student info (fetched)
+  const [user, setUser] = useState<any | null>(null);
+  const [courses, setCourses] = useState<any[]>([]);
+
+  const fetchUserAndCourses = async () => {
+    const token = (typeof window !== 'undefined') ? (localStorage.getItem('authToken') || process.env.NEXT_PUBLIC_DEV_TOKEN) : null;
+    if (!token) {
+      setUser(null);
+      setCourses([]);
+      return;
+    }
+
+    try {
+      const resp = await (await import('../lib/api')).default.get('/auth/me/');
+      setUser(resp.data);
+    } catch (err) {
+      setUser(null);
+    }
+
+    try {
+      const resp2 = await (await import('../lib/api')).default.get('/student/courses/');
+      setCourses(resp2.data);
+    } catch (err) {
+      setCourses([]);
+    }
   };
+
+  useEffect(() => {
+    // fetch on mount
+    fetchUserAndCourses();
+  }, []);
 
   // Mock data - Métricas generales
   const generalMetrics = {
@@ -48,8 +71,8 @@ export function StudentReport({ onBack }: StudentReportProps) {
     trend: "up", // up, down, stable
   };
 
-  // Mock data - Materias
-  const subjects = [
+  // Subjects - use enrolled courses when available
+  const subjects = courses.length > 0 ? courses.map(c => ({ id: String(c.id), name: c.name })) : [
     { id: "algorithms", name: "Algoritmos y Estructuras de Datos" },
     { id: "databases", name: "Bases de Datos" },
     { id: "networks", name: "Redes de Computadoras" },
@@ -203,7 +226,7 @@ export function StudentReport({ onBack }: StudentReportProps) {
           <div>
             <h1 className="text-gray-900 mb-2">Reporte Individual de Atención</h1>
             <p className="text-gray-600">
-              {studentInfo.name} • {studentInfo.id} • {studentInfo.career}
+              {user ? `${user.first_name || user.username || user.email} • ${user.user_code || `USR${String(user.id).padStart(3,'0')}`} • Estudiante` : 'Usuario no autenticado'}
             </p>
           </div>
           <Badge className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">

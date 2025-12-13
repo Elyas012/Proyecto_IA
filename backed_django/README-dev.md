@@ -24,3 +24,23 @@ You can also set `NEXT_PUBLIC_DEV_TOKEN` in `fronted_nextjs/.env.local` (or in y
 ```
 NEXT_PUBLIC_DEV_TOKEN=4db18195974982419d2743e6c10a081b85740742
 ```
+
+Feature records (metrics):
+
+- While analysis is active the frontend will POST periodic feature vectors to `/api/student/feature-records/` (requires auth). To view recent entries for a user:
+
+```bash
+curl -H "Authorization: Token <token>" http://127.0.0.1:8000/api/student/feature-records/
+```
+
+Create demo course and enrollment
+---------------------------------
+
+If you don't see courses when calling `/api/student/courses/` you can create a demo course and enroll the `dev` user with the management command:
+
+```bash
+python manage.py create_demo_course --code CS101 --name "Introducción a IA" --teacher dev --student dev
+```
+
+This will create a `Course`, a `ClassSession` (status `active`) and a `StudentCourse` enrollment for the `dev` user so the endpoint will return results when queried with the dev token.
+

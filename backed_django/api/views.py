@@ -8,7 +8,8 @@ from django.contrib.auth import authenticate, get_user_model
 from django.utils import timezone
 from .models import Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile
 from .serializers import (MessageSerializer, CourseSerializer, ClassSessionSerializer, 
-                         StudentCourseSerializer, UserSerializer, AttentionRecordSerializer)
+                         StudentCourseSerializer, UserSerializer, AttentionRecordSerializer, FeatureRecordSerializer)
+from .models import FeatureRecord
 
 User = get_user_model()
 
@@ -113,6 +114,31 @@ def student_courses(request):
     return Response(courses)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user(request):
+    """Return basic profile info for the authenticated user."""
+    user = request.user
+    role = 'student'
+    user_code = ''
+    try:
+        if hasattr(user, 'profile'):
+            role = user.profile.role
+            user_code = user.profile.user_code
+    except Exception:
+        pass
+
+    return Response({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'role': role,
+        'user_code': user_code,
+    })
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def record_attention(request):
@@ -152,6 +178,28 @@ def record_attention(request):
         pass
     
     return Response(AttentionRecordSerializer(record).data, status=status.HTTP_201_CREATED)
+
+
+# Feature recording endpoint
+@api_view(['POST', 'GET'])
+@permission_classes([IsAuthenticated])
+def feature_records(request):
+    if request.method == 'POST':
+        class_session_id = request.data.get('class_session_id')
+        features = request.data.get('features')
+        if not class_session_id or features is None:
+            return Response({'detail': 'class_session_id and features required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            cs = ClassSession.objects.get(id=class_session_id)
+        except ClassSession.DoesNotExist:
+            return Response({'detail': 'Class session not found'}, status=status.HTTP_404_NOT_FOUND)
+        fr = FeatureRecord.objects.create(student=request.user, class_session=cs, features=features)
+        return Response(FeatureRecordSerializer(fr).data, status=status.HTTP_201_CREATED)
+
+    # GET recent features
+    events = FeatureRecord.objects.filter(student=request.user).order_by('-timestamp')[:200]
+    serializer = FeatureRecordSerializer(events, many=True)
+    return Response(serializer.data)
 
 
 # Teacher endpoints

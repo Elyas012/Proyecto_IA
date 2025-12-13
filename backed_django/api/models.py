@@ -72,6 +72,20 @@ class AttentionRecord(models.Model):
         return f"{self.student.username} - {self.class_session.course.code} - {self.attention_score}%"
 
 
+class FeatureRecord(models.Model):
+    """Store computed facial feature vectors for training/analysis (privacy: no images)."""
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='feature_records')
+    class_session = models.ForeignKey(ClassSession, on_delete=models.CASCADE, related_name='feature_records')
+    features = models.JSONField()  # e.g. {leftEAR, rightEAR, mar, pitch, yaw, roll}
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.timestamp} - {self.student.username} - features"
+
+
 class UserProfile(models.Model):
     """Perfil extendido del usuario"""
     ROLE_CHOICES = [('student', 'Estudiante'), ('teacher', 'Docente'), ('admin', 'Administrador')]

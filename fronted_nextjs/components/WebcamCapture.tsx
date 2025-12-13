@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import * as tf from '@tensorflow/tfjs';
+import api from '../lib/api';
 
 interface WebcamCaptureProps {
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -105,6 +107,8 @@ export default function WebcamCapture({ videoRef, isAnalyzing, isCameraActive, o
   const featuresWindowRef = useRef<number[][]>([]);
   const lastAttentionRef = useRef<number>(100);
   const consecutiveLowRef = useRef<number>(0);
+  const signaledReadyRef = useRef<boolean>(false);
+  const lastFeatureSentRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Build or load model when component mounts
@@ -173,6 +177,11 @@ export default function WebcamCapture({ videoRef, isAnalyzing, isCameraActive, o
         if (!active) return;
         if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
         const landmarks = results.multiFaceLandmarks[0];
+        // Signal that features are being extracted as soon as we detect a face
+        if (!signaledReadyRef.current) {
+          signaledReadyRef.current = true;
+          try { onFeaturesExtracted(true); } catch (e) {}
+        }
         const leftEAR = computeEAR(landmarks, LEFT_EYE);
         const rightEAR = computeEAR(landmarks, RIGHT_EYE);
         const mar = computeMAR(landmarks);
@@ -194,14 +203,32 @@ export default function WebcamCapture({ videoRef, isAnalyzing, isCameraActive, o
           onAttentionUpdate(attentionScore, level);
           inp.dispose(); pred.dispose();
         }
+        // Periodically send features to backend for storage/training
+        try {
+          const now = Date.now();
+          if (classSessionId && (!lastFeatureSentRef.current || (now - lastFeatureSentRef.current) > 5000)) {
+            lastFeatureSentRef.current = now;
+            api.post('/student/feature-records/', { class_session_id: classSessionId, features: { leftEAR, rightEAR, mar, pitch, yaw, roll } }).catch(() => {});
+          }
+        } catch (e) {}
       });
 
       // Use a requestAnimationFrame loop to feed frames to mediapipe when camera_utils is not available
       let rafId: number | null = null;
       const frameLoop = async () => {
         if (!videoRef.current) return;
-        await faceMeshInst.send({ image: videoRef.current });
-        rafId = requestAnimationFrame(frameLoop);
+        try {
+          await faceMeshInst.send({ image: videoRef.current });
+          rafId = requestAnimationFrame(frameLoop);
+        } catch (err) {
+          // MediaPipe/WASM runtime error. Log, notify dev, and retry after a short delay without crashing the app.
+          console.error('MediaPipe send error:', err);
+          try { if (typeof window !== 'undefined') window.dispatchEvent(new Event('mediapipe-error')); } catch(e){}
+          // Backoff retry using setTimeout -> requestAnimationFrame
+          setTimeout(() => {
+            try { requestAnimationFrame(frameLoop); } catch(e) { /* ignore */ }
+          }, 1000);
+        }
       };
       rafId = requestAnimationFrame(frameLoop);
       cameraInst = { stop: () => { if (rafId) cancelAnimationFrame(rafId); } };
@@ -214,9 +241,20 @@ export default function WebcamCapture({ videoRef, isAnalyzing, isCameraActive, o
       if (cameraInst) cameraInst.stop();
       if (faceMeshInst) faceMeshInst.close && faceMeshInst.close();
       featuresWindowRef.current = [];
-      onFeaturesExtracted(false);
+      signaledReadyRef.current = false;
+      lastFeatureSentRef.current = null;
+      try { onFeaturesExtracted(false); } catch (e) {}
     };
   }, [videoRef, isCameraActive, isAnalyzing, onFeaturesExtracted, onAttentionUpdate]);
+
+  // Listen for mediapipe errors and show a helpful toast once
+  useEffect(() => {
+    const onMpErr = () => {
+      try { if (typeof window !== 'undefined') toast.error('Error inicializando MediaPipe. Revisa consola y reintenta.'); } catch(e){}
+    };
+    window.addEventListener('mediapipe-error', onMpErr);
+    return () => window.removeEventListener('mediapipe-error', onMpErr);
+  }, []);
 
   return null; // This component doesn't render anything itself, it works with the passed videoRef
 }

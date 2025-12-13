@@ -54,6 +54,11 @@ node scripts/create_demo_model.js
 
 This will create the model files under `public/models/attention_model/` so the app can load them during development.
 
+Feature capture & storage
+-------------------------
+
+While analyzing, the client will periodically send computed facial features (EAR, MAR, head pose) to the backend at `/api/student/feature-records/`. These are stored as `FeatureRecord` entries (JSON) for later use in training or metrics. No images are uploaded — only numeric features are stored to respect privacy.
+
 Development authentication helper
 ---------------------------------
 

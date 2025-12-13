@@ -50,6 +50,22 @@ interface Course {
   status: "active" | "upcoming" | "completed";
 }
 
+interface UserProfile {
+  id: number;
+  username: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  role?: string;
+  user_code?: string;
+}
+
+interface PomodoroMetrics {
+  total_events: number;
+  auto_pauses: number;
+  effective_seconds: number;
+}
+
 interface StudentDashboardProps {
   onLogout?: () => void;
 }
@@ -62,6 +78,11 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isFeaturesExtracted, setIsFeaturesExtracted] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState(0);
+  const isFeaturesExtractedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    isFeaturesExtractedRef.current = isFeaturesExtracted;
+  }, [isFeaturesExtracted]);
   const [attentionLevel, setAttentionLevel] = useState<AttentionLevel>("high");
   const [attentionScore, setAttentionScore] = useState(85);
   const [showLowAttentionAlert, setShowLowAttentionAlert] = useState(false);
@@ -71,6 +92,8 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [attentionHistory, setAttentionHistory] = useState<AttentionData[]>([
     { time: "0s", attention: 85 },
   ]);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [pomodoroMetrics, setPomodoroMetrics] = useState<PomodoroMetrics | null>(null);
   const [autoPauseTriggered, setAutoPauseTriggered] = useState(false);
   
   // Estados para Pomodoro
@@ -82,38 +105,41 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const loadUser = async () => {
+    try {
+      const resp = await api.get('/auth/me/');
+      setUser(resp.data);
+    } catch (err) {
+      console.warn('No authenticated user (me) or error', err);
+      setUser(null);
+    }
+  };
+
+  const loadPomodoroMetrics = async () => {
+    try {
+      const resp = await api.get('/student/pomodoro-metrics/');
+      setPomodoroMetrics(resp.data);
+    } catch (err) {
+      console.warn('Could not load pomodoro metrics', err);
+      setPomodoroMetrics(null);
+    }
+  };
+
   // Cargar cursos del estudiante desde la API
   const loadCourses = async () => {
+    // Avoid calling API when there's no token to prevent noisy 401 runtime errors
     try {
+      const token = localStorage.getItem('authToken') || (typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_DEV_TOKEN : null);
+      if (!token) {
+        toast.warning('No token presente. Usa el botón "Auth Dev Token" o inicia sesión.');
+        throw new Error('No auth token');
+      }
       const response = await api.get('/student/courses/');
       setCourses(response.data);
     } catch (error) {
       console.error('Error loading courses:', error);
-      toast.error('No autenticado o error al cargar cursos');
-      // Fallback a cursos estáticos si hay error
-      setCourses([
-        {
-          id: "1",
-          name: "Algoritmos y Estructuras de Datos",
-          professor: "Prof. María García",
-          time: "10:00 AM",
-          status: "active"
-        },
-        {
-          id: "2",
-          name: "Bases de Datos",
-          professor: "Prof. Carlos Ruiz",
-          time: "2:00 PM",
-          status: "upcoming"
-        },
-        {
-          id: "3",
-          name: "Inteligencia Artificial",
-          professor: "Prof. Ana Martínez",
-          time: "4:00 PM",
-          status: "upcoming"
-        }
-      ]);
+      toast.error('No autenticado o error al cargar cursos. Inicia sesión o inyecta token de desarrollo.');
+      setCourses([]);
     }
   };
 
@@ -125,7 +151,13 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
         localStorage.setItem('authToken', envToken);
       }
     } catch (e) {}
-    loadCourses();
+    // Load user and courses if a token exists
+    const token = localStorage.getItem('authToken') || (typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_DEV_TOKEN : null);
+    if (token) {
+      loadUser();
+      loadCourses();
+      loadPomodoroMetrics();
+    }
   }, []);
 
 
@@ -210,6 +242,11 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false });
         if (videoRef.current) videoRef.current.srcObject = stream;
+        // Ensure autoplay works in browsers by muting and calling play
+        if (videoRef.current) {
+          videoRef.current.muted = true;
+          try { await videoRef.current.play(); } catch (e) { /* autoplay may be blocked until user gesture */ }
+        }
         streamRef.current = stream;
         setIsCameraActive(true);
       } catch (error) {
@@ -236,7 +273,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     setExtractionProgress(10);
     const progressInterval = setInterval(() => {
       setExtractionProgress(p => Math.min(90, p + 10));
-      if (isFeaturesExtracted) {
+      if (isFeaturesExtractedRef.current) {
         setExtractionProgress(100);
         clearInterval(progressInterval);
         setTimeout(() => {
@@ -407,7 +444,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
           {currentView === "dashboard" && (
             <div>
               <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Bienvenido, Estudiante</h1>
+                <h1 className="text-gray-900 mb-2">Bienvenido, {user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}` : (user.username || user.email)) : 'Estudiante'}</h1>
                 <p className="text-gray-600">Selecciona un curso para comenzar</p>
               </div>
 
@@ -415,40 +452,40 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <Card className="border-l-4 border-l-cyan-500">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm text-gray-600">Atención Promedio</CardTitle>
+                    <CardTitle className="text-sm text-gray-600">Eventos Pomodoro</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-cyan-600">82%</span>
+                      <span className="text-cyan-600">{pomodoroMetrics ? pomodoroMetrics.total_events : '—'}</span>
                       <TrendingUp className="w-5 h-5 text-green-600" />
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Esta semana</p>
+                    <p className="text-sm text-gray-500 mt-1">Totales</p>
                   </CardContent>
                 </Card>
 
                 <Card className="border-l-4 border-l-green-500">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm text-gray-600">Clases Atendidas</CardTitle>
+                    <CardTitle className="text-sm text-gray-600">Pausas Automáticas</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-green-600">12/15</span>
+                      <span className="text-green-600">{pomodoroMetrics ? pomodoroMetrics.auto_pauses : '—'}</span>
                       <BookOpen className="w-5 h-5 text-green-600" />
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Este mes</p>
+                    <p className="text-sm text-gray-500 mt-1">Registradas</p>
                   </CardContent>
                 </Card>
 
                 <Card className="border-l-4 border-l-blue-500">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm text-gray-600">Tiempo Total</CardTitle>
+                    <CardTitle className="text-sm text-gray-600">Tiempo Efectivo</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-blue-600">24.5h</span>
+                      <span className="text-blue-600">{pomodoroMetrics ? `${(pomodoroMetrics.effective_seconds / 3600).toFixed(1)}h` : '—'}</span>
                       <Clock className="w-5 h-5 text-blue-600" />
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Este mes</p>
+                    <p className="text-sm text-gray-500 mt-1">Horas registradas</p>
                   </CardContent>
                 </Card>
               </div>
@@ -460,50 +497,65 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                   <CardDescription>Selecciona un curso para iniciar la sesión de monitoreo</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {courses.map((course) => (
-                      <motion.div
-                        key={course.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
-                          selectedCourse?.id === course.id
-                            ? "bg-gradient-to-r from-cyan-50 to-cyan-100 border-cyan-300 shadow-md"
-                            : course.status === "active"
-                            ? "bg-gradient-to-r from-green-50 to-green-100 border-green-200"
-                            : "bg-gray-50 border-gray-200"
-                        }`}
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white ${
+                  {courses.length === 0 ? (
+                    <div className="p-4">
+                      <Alert className="border-cyan-300 bg-cyan-50">
+                        <AlertCircle className="h-4 w-4 text-cyan-600" />
+                        <AlertDescription className="text-cyan-700">
+                          No se encontraron cursos. Inicia sesión o carga el token de desarrollo para ver tus cursos.
+                        </AlertDescription>
+                      </Alert>
+                      <div className="mt-4 flex gap-2">
+                        <Button onClick={() => setCurrentView('profile')}>Iniciar Sesión / Perfil</Button>
+                        <Button onClick={async () => { const envToken = process.env.NEXT_PUBLIC_DEV_TOKEN; if (envToken) { localStorage.setItem('authToken', envToken); toast.success('Token de desarrollo cargado'); await loadUser(); await loadCourses(); await loadPomodoroMetrics(); } else { const t = prompt('Pega aquí el token de API (modo dev)'); if (t) { localStorage.setItem('authToken', t); toast.success('Token guardado'); await loadUser(); await loadCourses(); await loadPomodoroMetrics(); } } }} variant="outline">Auth Dev Token</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {courses.map((course) => (
+                        <motion.div
+                          key={course.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
                             selectedCourse?.id === course.id
-                              ? "bg-cyan-500"
+                              ? "bg-gradient-to-r from-cyan-50 to-cyan-100 border-cyan-300 shadow-md"
                               : course.status === "active"
-                              ? "bg-green-500"
-                              : "bg-gray-400"
-                          }`}>
-                            <BookOpen className="w-6 h-6" />
+                              ? "bg-gradient-to-r from-green-50 to-green-100 border-green-200"
+                              : "bg-gray-50 border-gray-200"
+                          }`}
+                        >
+                          <div className="flex items-center space-x-4">
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white ${
+                              selectedCourse?.id === course.id
+                                ? "bg-cyan-500"
+                                : course.status === "active"
+                                ? "bg-green-500"
+                                : "bg-gray-400"
+                            }`}>
+                              <BookOpen className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <p className="text-gray-900">{course.name}</p>
+                              <p className="text-sm text-gray-600">{course.professor} - {course.time}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-gray-900">{course.name}</p>
-                            <p className="text-sm text-gray-600">{course.professor} - {course.time}</p>
+                          <div className="flex items-center gap-3">
+                            {course.status === "active" && (
+                              <Badge className="bg-green-600">En vivo</Badge>
+                            )}
+                            {selectedCourse?.id === course.id ? (
+                              <Badge className="bg-cyan-600">Seleccionado</Badge>
+                            ) : (
+                              <Button onClick={() => handleSelectCourse(course)}>
+                                Seleccionar
+                              </Button>
+                            )}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {course.status === "active" && (
-                            <Badge className="bg-green-600">En vivo</Badge>
-                          )}
-                          {selectedCourse?.id === course.id ? (
-                            <Badge className="bg-cyan-600">Seleccionado</Badge>
-                          ) : (
-                            <Button onClick={() => handleSelectCourse(course)}>
-                              Seleccionar
-                            </Button>
-                          )}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -717,8 +769,8 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                               const t = prompt('Pega aquí el token de API (modo dev)');
                               if (t) { localStorage.setItem('authToken', t); toast.success('Token guardado'); }
                             }
-                            // Re-fetch courses now that token might be set
-                            try { await loadCourses(); toast.success('Cursos recargados'); } catch (e) { }
+                            // Re-fetch user, courses and metrics now that token might be set
+                            try { await loadUser(); await loadCourses(); await loadPomodoroMetrics(); toast.success('Cursos recargados'); } catch (e) { }
                           }}
                           variant="outline"
                           className="flex-1"
@@ -1024,19 +1076,19 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                 <CardContent className="space-y-4">
                   <div>
                     <label className="text-sm text-gray-600">Nombre Completo</label>
-                    <p className="text-gray-900">Juan Pérez</p>
+                    <p className="text-gray-900">{user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}` : user.username) : '—'}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Email</label>
-                    <p className="text-gray-900">estudiante@espe.edu.ec</p>
+                    <p className="text-gray-900">{user ? user.email : '—'}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">ID de Usuario</label>
-                    <p className="text-gray-900">EST001</p>
+                    <p className="text-gray-900">{user ? (user.user_code || `USR${String(user.id).padStart(3, '0')}`) : '—'}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Rol</label>
-                    <Badge>Estudiante</Badge>
+                    <Badge>{user ? (user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Estudiante') : '—'}</Badge>
                   </div>
                 </CardContent>
               </Card>
