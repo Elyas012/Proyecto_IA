@@ -54,20 +54,39 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
 
-  // Cargar estudiantes desde la API
+  const [teacherProfile, setTeacherProfile] = useState<{
+    id?: number;
+    username?: string;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    role?: string;
+    user_code?: string;
+  } | null>(null);
+  const [overview, setOverview] = useState<{ total_students: number; total_classes: number; average_attention: number } | null>(null);
+
+  // Cargar perfil del docente y estudiantes desde la API
   useEffect(() => {
-    const loadStudents = async () => {
+    const loadData = async () => {
       try {
-        const token = localStorage.getItem('authToken');
+        // Perfil autoritativo desde el backend (MySQL)
+        const meResp = await api.get('/auth/me/');
+        setTeacherProfile(meResp.data);
+
+        // Overview: números agregados (clases, estudiantes, atención promedio)
+        const ov = await api.get('/teacher/overview/');
+        setOverview(ov.data);
+
+        // Lista de estudiantes detallada
         const response = await api.get('/teacher/students/');
         setStudents(response.data);
       } catch (error) {
-        console.error('Error loading students:', error);
+        console.error('Error loading teacher data:', error);
         // Fallback a datos estáticos si hay error
-        setStudents([] );
+        setStudents([]);
       }
     };
-    loadStudents();
+    loadData();
   }, []);
 
   // Mock data - Distribución de atención del grupo
@@ -213,6 +232,11 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
               <div className="mb-8">
                 <h1 className="text-gray-900 mb-2">Dashboard del Docente</h1>
                 <p className="text-gray-600">Resumen general de la atención estudiantil</p>
+                {teacherProfile && (
+                  <div className="mt-3 text-sm text-gray-700">
+                    <strong>{teacherProfile.name}</strong> — <span className="text-gray-500">{teacherProfile.email}</span>
+                  </div>
+                )}
               </div>
 
               {/* Filters */}
@@ -257,7 +281,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-blue-600">{students.length}</span>
+                      <span className="text-blue-600">{overview ? overview.total_students : students.length}</span>
                       <Users className="w-5 h-5 text-blue-600" />
                     </div>
                     <p className="text-sm text-gray-500 mt-1">Activos</p>
@@ -270,7 +294,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-green-600">{averageClassAttention}%</span>
+                      <span className="text-green-600">{overview ? overview.average_attention + '%' : averageClassAttention + '%'}</span>
                       <TrendingUp className="w-5 h-5 text-green-600" />
                     </div>
                     <p className="text-sm text-gray-500 mt-1">Esta semana</p>
@@ -283,7 +307,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-blue-600">15</span>
+                      <span className="text-blue-600">{overview ? overview.total_classes : 15}</span>
                       <BookOpen className="w-5 h-5 text-blue-600" />
                     </div>
                     <p className="text-sm text-gray-500 mt-1">Este mes</p>
@@ -582,23 +606,23 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                 <CardContent className="space-y-4">
                   <div>
                     <label className="text-sm text-gray-600">Nombre Completo</label>
-                    <p className="text-gray-900">Prof. María García</p>
+                    <p className="text-gray-900">{(teacherProfile && `${teacherProfile.first_name || ''} ${teacherProfile.last_name || ''}`).trim() || teacherProfile?.username || '—'}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Email</label>
-                    <p className="text-gray-900">maria.garcia@espe.edu.ec</p>
+                    <p className="text-gray-900">{teacherProfile?.email || '—'}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">ID de Usuario</label>
-                    <p className="text-gray-900">DOC001</p>
+                    <p className="text-gray-900">{teacherProfile?.user_code || `USR${String(teacherProfile?.id || '').padStart(3,'0')}` || '—'}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Rol</label>
-                    <Badge>Docente</Badge>
+                    <Badge>{(teacherProfile?.role || 'Docente').charAt(0).toUpperCase() + (teacherProfile?.role || 'Docente').slice(1)}</Badge>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Departamento</label>
-                    <p className="text-gray-900">Ciencias de la Computación</p>
+                    <p className="text-gray-900">Docencia</p>
                   </div>
                 </CardContent>
               </Card>

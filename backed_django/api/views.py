@@ -234,6 +234,45 @@ def teacher_students(request):
     return Response(list(students_data.values()))
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def teacher_overview(request):
+    """Return overview stats for the authenticated teacher (students, classes, avg attention)."""
+    sessions = ClassSession.objects.filter(teacher=request.user)
+    total_classes = sessions.count()
+
+    # Collect unique students across all courses taught by this teacher
+    student_ids = set()
+    for session in sessions:
+        enrollments = StudentCourse.objects.filter(course=session.course)
+        for enrollment in enrollments:
+            student_ids.add(enrollment.student.id)
+
+    total_students = len(student_ids)
+
+    # Calculate average attention across students
+    total_attention = 0
+    total_records = 0
+    for sid in student_ids:
+        records = AttentionRecord.objects.filter(student_id=sid)
+        for r in records:
+            total_attention += r.attention_score
+            total_records += 1
+
+    average_attention = round((total_attention / total_records) if total_records > 0 else 0)
+
+    return Response({
+        'teacher': {
+            'id': request.user.id,
+            'name': f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username,
+            'email': request.user.email,
+        },
+        'total_students': total_students,
+        'total_classes': total_classes,
+        'average_attention': average_attention
+    })
+
+
 # Pomodoro events
 @api_view(['POST', 'GET'])
 @permission_classes([IsAuthenticated])
