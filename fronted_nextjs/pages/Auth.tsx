@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock, Mail, User, Shield, GraduationCap, Users, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
-import axios from 'axios';
+import api from "../lib/api";
+
 
 
 interface AuthProps {
@@ -95,112 +96,119 @@ export function Auth({ onLoginSuccess, onBack }: AuthProps) {
     }
   };
 
-  // Manejar login
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newErrors: { [key: string]: string } = {};
+const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  const newErrors: { [key: string]: string } = {};
 
-    if (!loginData.email) {
-      newErrors.loginEmail = "El correo es obligatorio";
-    } else if (!validateEmail(loginData.email)) {
-      newErrors.loginEmail = "Debe ingresar un correo electrónico válido";
-    }
+  if (!loginData.email) {
+    newErrors.loginEmail = "El correo es obligatorio";
+  } else if (!validateEmail(loginData.email)) {
+    newErrors.loginEmail = "Debe ingresar un correo electrónico válido";
+  }
 
-    if (!loginData.password) {
-      newErrors.loginPassword = "La contraseña es obligatoria";
-    }
+  if (!loginData.password) {
+    newErrors.loginPassword = "La contraseña es obligatoria";
+  }
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      setSuccessMessage("");
-      return;
-    }
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors);
+    setSuccessMessage("");
+    return;
+  }
 
-    // Call backend login endpoint
-    setErrors({});
-    setSuccessMessage("Iniciando sesión...");
-      axios.post('/api/auth/login', {
-        email: loginData.email,
-        password: loginData.password,
-      })
-      .then(response => {
-      const token = response.data?.token;
-      if (token) {
-        localStorage.setItem('authToken', token);
-      }
-      setSuccessMessage('Inicio de sesión exitoso. Redirigiendo...');
-      onLoginSuccess?.("Estudiante");
-    })
-    .catch(err => {
-      console.error('Login error', err);
-      const msg = err.response?.data?.detail || 'Error en las credenciales';
-      setErrors({ loginGeneral: msg });
-      setSuccessMessage('');
+  setErrors({});
+  setSuccessMessage("Iniciando sesión...");
+
+  try {
+    const response = await api.post("/auth/login/", {
+      email: loginData.email,
+      password: loginData.password,
     });
-  };
-
-  // Manejar registro
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newErrors: { [key: string]: string } = {};
-
-    if (!registerData.fullName) {
-      newErrors.fullName = "El nombre completo es obligatorio";
+    const { token, user } = response.data;
+    if (typeof window !== "undefined") {
+      if (token) localStorage.setItem("authToken", token);
+      if (user) localStorage.setItem("user", JSON.stringify(user));
     }
+    setSuccessMessage("Inicio de sesión exitoso. Redirigiendo...");
 
-    if (!registerData.email) {
-      newErrors.registerEmail = "El correo es obligatorio";
-    } else if (!validateEmail(registerData.email)) {
-      newErrors.registerEmail = "Debe ingresar un correo electrónico válido";
-    }
+    const role = user?.role || "student";
+    const mappedRole =
+      role === "teacher" ? "Docente" : role === "admin" ? "Administrador" : "Estudiante";
 
-    if (!registerData.userId) {
-      newErrors.userId = "El ID de usuario es obligatorio";
-    } else if (registerData.userId.length < 3) {
-      newErrors.userId = "El ID debe tener al menos 3 caracteres";
-    }
+    onLoginSuccess?.(mappedRole);
+  } catch (err: any) {
+    console.error("Login error", err);
+    const msg = err?.response?.data?.detail || "Error en las credenciales";
+    setErrors({ loginGeneral: msg });
+    setSuccessMessage("");
+  }
+};
 
-    if (!registerData.password) {
-      newErrors.registerPassword = "La contraseña es obligatoria";
-    } else if (registerData.password.length < 6) {
-      newErrors.registerPassword = "La contraseña debe tener al menos 6 caracteres";
-    }
 
-    if (!registerData.confirmPassword) {
-      newErrors.confirmPassword = "Debe confirmar la contraseña";
-    } else if (registerData.password !== registerData.confirmPassword) {
-      newErrors.confirmPassword = "Las contraseñas no coinciden";
-    }
+const handleRegister = async (e: React.FormEvent) => {
+  e.preventDefault();
+  const newErrors: { [key: string]: string } = {};
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      setSuccessMessage("");
-      return;
-    }
+  if (!registerData.fullName) {
+    newErrors.fullName = "El nombre completo es obligatorio";
+  }
 
-    // Call backend register endpoint
-    setErrors({});
-    setSuccessMessage('Registrando...');
-    axios.post('/api/auth/register', {
+  if (!registerData.email) {
+    newErrors.registerEmail = "El correo es obligatorio";
+  } else if (!validateEmail(registerData.email)) {
+    newErrors.registerEmail = "Debe ingresar un correo electrónico válido";
+  }
+
+  if (!registerData.userId) {
+    newErrors.userId = "El ID de usuario es obligatorio";
+  } else if (registerData.userId.length < 3) {
+    newErrors.userId = "El ID debe tener al menos 3 caracteres";
+  }
+
+  if (!registerData.password) {
+    newErrors.registerPassword = "La contraseña es obligatoria";
+  } else if (registerData.password.length < 6) {
+    newErrors.registerPassword = "La contraseña debe tener al menos 6 caracteres";
+  }
+
+  if (!registerData.confirmPassword) {
+    newErrors.confirmPassword = "Debe confirmar la contraseña";
+  } else if (registerData.password !== registerData.confirmPassword) {
+    newErrors.confirmPassword = "Las contraseñas no coinciden";
+  }
+
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors);
+    setSuccessMessage("");
+    return;
+  }
+
+  setErrors({});
+  setSuccessMessage("Registrando...");
+
+  try {
+    const response = await api.post("/auth/register/", {
       fullName: registerData.fullName,
       email: registerData.email,
       password: registerData.password,
       userId: registerData.userId,
-    })
-    .then(response => {
-      const token = response.data?.token;
-      if (token) localStorage.setItem('authToken', token);
-      const role = determineRole(registerData.userId);
-      setSuccessMessage(`Registro exitoso como ${role}. Redirigiendo al panel...`);
-      onLoginSuccess?.(role);
-    })
-    .catch(err => {
-      console.error('Register error', err);
-      const msg = err.response?.data?.detail || 'Error en el registro';
-      setErrors({ registerGeneral: msg });
-      setSuccessMessage('');
     });
-  };
+    const { token, user } = response.data;
+    if (typeof window !== "undefined") {
+      if (token) localStorage.setItem("authToken", token);
+      if (user) localStorage.setItem("user", JSON.stringify(user));
+    }
+
+    const role = determineRole(registerData.userId);
+    setSuccessMessage(`Registro exitoso como ${role}. Redirigiendo al panel...`);
+    onLoginSuccess?.(role);
+  } catch (err: any) {
+    console.error("Register error", err);
+    const msg = err?.response?.data?.detail || "Error en el registro";
+    setErrors({ registerGeneral: msg });
+    setSuccessMessage("");
+  }
+};
 
   const currentRole = determineRole(registerData.userId);
   const passwordStrength = getPasswordStrength(registerData.password);
@@ -624,3 +632,5 @@ export function Auth({ onLoginSuccess, onBack }: AuthProps) {
     </div>
   );
 }
+
+export default Auth;
