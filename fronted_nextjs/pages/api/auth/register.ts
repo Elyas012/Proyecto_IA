@@ -1,67 +1,71 @@
-    import type { NextApiRequest, NextApiResponse } from "next";
-    import bcrypt from "bcryptjs";
-    import jwt from "jsonwebtoken";
-    import { dbConnect } from "../../../lib/mongodb";
-    import { User } from "../../../models/User";
-    import { determineRole } from "../../../lib/roles";
+import type { NextApiRequest, NextApiResponse } from "next";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { dbConnect } from "../../../lib/mongodb";
+import { User } from "../../../models/User";
 
-    const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-this";
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-this";
 
-    export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== "POST") return res.status(405).end();
+const determineRole = (userId: string): string => {
+  if (userId.startsWith("EST")) return "Estudiante";
+  if (userId.startsWith("DOC")) return "Docente";
+  if (userId.startsWith("ADM")) return "Administrador";
+  return "No identificado";
+};
 
-    await dbConnect();
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") return res.status(405).end();
 
-    const { fullName, email, password, userId } = req.body as {
-        fullName?: string;
-        email?: string;
-        password?: string;
-        userId?: string;
-    };
+  await dbConnect();
 
-    if (!fullName || !email || !password || !userId) {
-        return res.status(400).json({ detail: "Faltan campos obligatorios" });
-    }
+  const { fullName, email, password, userId } = req.body;
 
-    const role = determineRole(userId);
-    if (role === "No identificado") {
-        return res.status(400).json({ detail: "El ID de usuario no corresponde a ningún rol válido" });
-    }
+  if (!fullName || !email || !password || !userId) {
+    return res.status(400).json({ detail: "Todos los campos son obligatorios" });
+  }
 
-    const existingEmail = await User.findOne({ email });
-    if (existingEmail) {
-        return res.status(400).json({ detail: "El correo ya está registrado" });
-    }
+  const existingUserByEmail = await User.findOne({ email });
+  if (existingUserByEmail) {
+    return res.status(400).json({ detail: "El correo electrónico ya está en uso" });
+  }
 
-    const existingUserId = await User.findOne({ userId });
-    if (existingUserId) {
-        return res.status(400).json({ detail: "El ID de usuario ya está registrado" });
-    }
+  const existingUserById = await User.findOne({ userId });
+  if (existingUserById) {
+    return res.status(400).json({ detail: "El ID de usuario ya existe" });
+  }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+  const role = determineRole(userId);
+  if (role === "No identificado") {
+      return res.status(400).json({ detail: "ID de usuario inválido. Debe comenzar con EST, DOC, o ADM." });
+  }
 
-    const user = await User.create({
-        fullName,
-        email,
-        userId,
-        passwordHash,
-        role,
-    });
+  const passwordHash = await bcrypt.hash(password, 10);
 
-    const token = jwt.sign(
-        { sub: user._id.toString(), role: user.role, email: user.email },
-        JWT_SECRET,
-        { expiresIn: "1d" }
-    );
+  const newUser = new User({
+    fullName,
+    email,
+    passwordHash,
+    userId,
+    role,
+    lastLoginAt: new Date(),
+  });
 
-    return res.status(201).json({
-        token,
-        user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        userId: user.userId,
-        role: user.role,
-        },
-    });
-    }
+  await newUser.save();
+
+  const token = jwt.sign(
+    { sub: newUser._id.toString(), role: newUser.role, email: newUser.email },
+    JWT_SECRET,
+    { expiresIn: "1d" }
+  );
+
+  return res.status(201).json({
+    token,
+    user: {
+      id: newUser._id,
+      fullName: newUser.fullName,
+      email: newUser.email,
+      userId: newUser.userId,
+      role: newUser.role,
+    },
+  });
+}

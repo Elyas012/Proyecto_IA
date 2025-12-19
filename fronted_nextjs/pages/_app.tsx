@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navbar } from "../components/Navbar";
 import { Button } from "../components/ui/button";
 import { ImageWithFallback } from "../components/Figma/ImageWithFallback";
@@ -15,6 +15,30 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<"home" | "auth" | "student-dashboard" | "teacher-dashboard" | "admin-dashboard">("home");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    const userString = localStorage.getItem("user");
+    if (token && userString) {
+      try {
+        const user = JSON.parse(userString);
+        if (user && user.role) {
+          if (user.role === "Estudiante" || user.role === "student") {
+            setCurrentPage("student-dashboard");
+          } else if (user.role === "Docente" || user.role === "teacher") {
+            setCurrentPage("teacher-dashboard");
+          } else if (user.role === "Administrador" || user.role === "admin") {
+            setCurrentPage("admin-dashboard");
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse user from localStorage", e);
+        // Clear stored data if it's corrupted
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("user");
+      }
+    }
+  }, []);
+  
   if (currentPage === "auth") {
     return <Auth onLoginSuccess={(role) => {
       if (role === "Estudiante") {
@@ -29,6 +53,7 @@ export default function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
     setCurrentPage("home");
   };
 
