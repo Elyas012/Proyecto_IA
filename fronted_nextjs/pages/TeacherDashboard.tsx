@@ -62,6 +62,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     last_name?: string;
     role?: string;
     user_code?: string;
+    name?: string;
   } | null>(null);
   const [overview, setOverview] = useState<{ total_students: number; total_classes: number; average_attention: number } | null>(null);
 
@@ -149,8 +150,28 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   );
 
   const averageClassAttention = Math.round(
-    students.reduce((acc, student) => acc + student.averageAttention, 0) / students.length
+    students.reduce((acc, student) => acc + student.averageAttention, 0) / (students.length || 1)
   );
+
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [teacherCourses, setTeacherCourses] = useState<any[]>([]);
+  
+  useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        const resp = await api.get('/teacher/class-sessions/');
+        setSessions(resp.data);
+        const byCourse: Record<number, any> = {};
+        resp.data.forEach((s: any) => {
+          if (!byCourse[s.course.id]) byCourse[s.course.id] = s.course;
+        });
+        setTeacherCourses(Object.values(byCourse));
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    loadSessions();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
@@ -469,90 +490,72 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
             </div>
           )}
 
-          {/* Students View */}
+          {/* Students View (TABLA ACTUALIZADA) */}
           {currentView === "students" && (
-            <div>
-              <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Lista de Estudiantes</h1>
-                <p className="text-gray-600">Gestión y seguimiento individual</p>
-              </div>
+            <section className="mt-8 bg-white shadow-sm rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Lista de Estudiantes
+              </h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Gestión y seguimiento individual.
+              </p>
 
-              {/* Search Bar */}
-              <div className="mb-6">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Buscar por nombre, email o ID..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">ID</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">Estudiante</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">% Atención</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">Asistencia</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">Estado</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-500">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {students.map((student) => (
+                      <tr key={student.id}>
+                        <td className="px-3 py-2 text-xs text-gray-500">{student.id}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <div className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+                              {student.name.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-gray-900">
+                                {student.name}
+                              </p>
+                              <p className="text-xs text-gray-500">{student.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-900">
+                          {student.averageAttention}%
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-900">
+                          {student.sessionsAttended}/{student.totalSessions}
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          <Badge className={getStatusColor(student.status)}>
+                            {student.status === "high" && "Alto"}
+                            {student.status === "medium" && "Medio"}
+                            {student.status === "low" && "Bajo"}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          <button 
+                            className="text-indigo-600 hover:text-indigo-800 font-medium"
+                            onClick={() => openStudentDetails(student)}
+                          >
+                            Ver detalle
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-
-              {/* Students Table */}
-              <Card>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-sm text-gray-600">ID</th>
-                          <th className="px-6 py-4 text-left text-sm text-gray-600">Estudiante</th>
-                          <th className="px-6 py-4 text-left text-sm text-gray-600">Email</th>
-                          <th className="px-6 py-4 text-left text-sm text-gray-600">Atención Promedio</th>
-                          <th className="px-6 py-4 text-left text-sm text-gray-600">Asistencia</th>
-                          <th className="px-6 py-4 text-left text-sm text-gray-600">Estado</th>
-                          <th className="px-6 py-4 text-left text-sm text-gray-600">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {filteredStudents.map((student) => (
-                          <tr key={student.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 text-sm text-gray-900">{student.id}</td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white text-sm">
-                                  {student.name.charAt(0)}
-                                </div>
-                                <span className="text-sm text-gray-900">{student.name}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{student.email}</td>
-                            <td className="px-6 py-4">
-                              <span className={`${getAttentionColor(student.averageAttention)}`}>
-                                {student.averageAttention}%
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">
-                              {student.sessionsAttended}/{student.totalSessions}
-                            </td>
-                            <td className="px-6 py-4">
-                              <Badge className={getStatusColor(student.status)}>
-                                {student.status === "high" && "Alto"}
-                                {student.status === "medium" && "Medio"}
-                                {student.status === "low" && "Bajo"}
-                              </Badge>
-                            </td>
-                            <td className="px-6 py-4">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openStudentDetails(student)}
-                              >
-                                <Eye className="w-4 h-4 mr-2" />
-                                Ver detalles
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            </section>
           )}
 
           {/* Stats View */}
@@ -606,7 +609,13 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                 <CardContent className="space-y-4">
                   <div>
                     <label className="text-sm text-gray-600">Nombre Completo</label>
-                    <p className="text-gray-900">{(teacherProfile && `${teacherProfile.first_name || ''} ${teacherProfile.last_name || ''}`).trim() || teacherProfile?.username || '—'}</p>
+                    <p className="text-gray-900">{(
+                          (teacherProfile &&
+                            `${teacherProfile.first_name || ''} ${teacherProfile.last_name || ''}`.trim()) ||
+                          teacherProfile?.username ||
+                          '—'
+                        )}
+                      </p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Email</label>

@@ -2,6 +2,8 @@ from rest_framework.routers import DefaultRouter
 from django.urls import path
 from .views import (MessageViewSet, LoginView, RegisterView, student_courses, 
                    record_attention, teacher_students, teacher_overview, admin_users, admin_active_sessions, pomodoro_events, pomodoro_metrics, feature_records, current_user)
+from django.urls import path
+from . import views
 
 router = DefaultRouter()
 router.register(r'messages', MessageViewSet, basename='message')
@@ -19,4 +21,9 @@ urlpatterns = router.urls + [
     path('teacher/overview/', teacher_overview, name='teacher-overview'),
     path('admin/users/', admin_users, name='admin-users'),
     path('admin/active-sessions/', admin_active_sessions, name='admin-active-sessions'),
+    path('admin/courses/', views.admin_courses),
+    path('teacher/class-sessions/', views.teacher_class_sessions),
+    path('teacher/student-courses/', views.teacher_student_courses),
+    path("admin/assign-teacher/", views.admin_assign_teacher, name="admin-assign-teacher"),
+    path("admin/enroll-student/", views.admin_enroll_student, name="admin-enroll-student"),
 ]

@@ -10,6 +10,22 @@ from .models import Message, Course, ClassSession, StudentCourse, AttentionRecor
 from .serializers import (MessageSerializer, CourseSerializer, ClassSessionSerializer, 
                          StudentCourseSerializer, UserSerializer, AttentionRecordSerializer, FeatureRecordSerializer)
 from .models import FeatureRecord
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from .models import Course, ClassSession, StudentCourse, UserProfile
+from .serializers import CourseSerializer, ClassSessionSerializer, StudentCourseSerializer, UserSerializer
+from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from django.contrib.auth.models import User
+from .models import Course, ClassSession, UserProfile
+from .serializers import ClassSessionSerializer
+from .models import StudentCourse
+from .serializers import StudentCourseSerializer
+
+
 
 User = get_user_model()
 
@@ -317,7 +333,6 @@ def pomodoro_metrics(request):
     return Response({'total_events': total_events, 'auto_pauses': auto_pauses, 'effective_seconds': total_effective})
 
 
-# Admin endpoints
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_users(request):
@@ -328,17 +343,19 @@ def admin_users(request):
     users = User.objects.all()
     users_data = []
     for user in users:
+        # valores reales de BD
         role = 'student'
-        user_id = f"USR{str(user.id).zfill(3)}"
+        user_code = f"USR{str(user.id).zfill(3)}"
         if hasattr(user, 'profile'):
             role = user.profile.role
-            user_id = user.profile.user_code
+            user_code = user.profile.user_code  # EST001, DOC001, ADM002
         
         users_data.append({
-            'id': user_id,
+            'id': user.id,                      # id numérico de auth_user
+            'userCode': user_code,              # código amigable
             'name': f"{user.first_name} {user.last_name}".strip() or user.username,
             'email': user.email,
-            'role': role.capitalize(),
+            'role': role.capitalize(),          # "Student", "Teacher", "Admin"
             'status': 'active',
             'lastConnection': 'Hace 5 minutos',
             'registrationDate': str(user.date_joined.date())
@@ -377,4 +394,141 @@ def admin_active_sessions(request):
         })
     
     return Response(sessions_data)
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def admin_courses(request):
+    """Listar y crear cursos (solo admin)."""
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+        return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        courses = Course.objects.all().order_by('code')
+        return Response(CourseSerializer(courses, many=True).data)
+
+    # POST - crear curso
+    serializer = CourseSerializer(data=request.data)
+    if serializer.is_valid():
+        course = serializer.save()
+        return Response(CourseSerializer(course).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def teacher_class_sessions(request):
+    """Sesiones de clase creadas por el docente autenticado."""
+    # Solo docentes
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'teacher':
+        return Response({'detail': 'Only teachers can access this'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        sessions = ClassSession.objects.filter(teacher=request.user).order_by('-date', '-time')
+        return Response(ClassSessionSerializer(sessions, many=True).data)
+
+    # POST - crear sesión nueva
+    data = request.data.copy()
+    data['teacher_id'] = request.user.id  # se fuerza al docente actual
+    serializer = ClassSessionSerializer(data=data)
+    if serializer.is_valid():
+        session = serializer.save()
+        return Response(ClassSessionSerializer(session).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def teacher_student_courses(request):
+    """Asignar estudiantes a cursos y listar matriculados (solo docentes)."""
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'teacher':
+        return Response({'detail': 'Only teachers can access this'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        course_id = request.query_params.get('course_id')
+        if not course_id:
+            return Response({'detail': 'course_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        enrollments = StudentCourse.objects.filter(course_id=course_id).select_related('student', 'course')
+        return Response(StudentCourseSerializer(enrollments, many=True).data)
+
+    # POST - matricular estudiante
+    student_id = request.data.get('student_id')
+    course_id = request.data.get('course_id')
+    if not student_id or not course_id:
+        return Response({'detail': 'student_id and course_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        student = User.objects.get(id=student_id)
+        course = Course.objects.get(id=course_id)
+    except (User.DoesNotExist, Course.DoesNotExist):
+        return Response({'detail': 'Student or course not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # crear o recuperar matrícula
+    enrollment, created = StudentCourse.objects.get_or_create(student=student, course=course)
+    return Response(
+        StudentCourseSerializer(enrollment).data,
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+    )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_assign_teacher(request):
+    # Solo admins
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+        return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
+
+    course_id = request.data.get('course_id')
+    teacher_id = request.data.get('teacher_id')
+
+    if not course_id or not teacher_id:
+        return Response({'detail': 'course_id and teacher_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    course = get_object_or_404(Course, id=course_id)
+    teacher = get_object_or_404(User, id=teacher_id)
+    # Verificamos que su perfil sea docente
+    if not hasattr(teacher, 'profile') or teacher.profile.role != 'teacher':
+        return Response({'detail': 'Selected user is not a teacher'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Crea una sesión “base” o la próxima sesión programada
+    session = ClassSession.objects.create(
+        course=course,
+        teacher=teacher,
+        title=f"Sesión inicial - {course.code}",
+        date=timezone.now().date(),
+        time=timezone.now().time(),
+        duration_minutes=60,
+        status="upcoming",
+    )
+
+    return Response(ClassSessionSerializer(session).data, status=status.HTTP_201_CREATED)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_enroll_student(request):
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+        return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
+
+    student_id = request.data.get('student_id')
+    course_id = request.data.get('course_id')
+
+    if not student_id or not course_id:
+        return Response({'detail': 'student_id and course_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        student = User.objects.get(id=student_id)
+        course = Course.objects.get(id=course_id)
+    except (User.DoesNotExist, Course.DoesNotExist):
+        return Response({'detail': 'Student or course not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Opcional: asegurar que el usuario es estudiante
+    if not hasattr(student, 'profile') or student.profile.role != 'student':
+        return Response({'detail': 'Selected user is not a student'}, status=status.HTTP_400_BAD_REQUEST)
+
+    enrollment, created = StudentCourse.objects.get_or_create(
+        student=student,
+        course=course,
+    )
+
+    return Response(
+        StudentCourseSerializer(enrollment).data,
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+    )
 

@@ -25,30 +25,39 @@ import {
   Activity,
   Clock,
   AlertCircle,
-  CheckCircle2,
   Shield
 } from "lucide-react";
-import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { toast } from "sonner"; // Opcional: si usas sonner para notificaciones, si no, usa alert o console
 
 type ViewType = "overview" | "users" | "sessions" | "stats" | "config";
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: "Estudiante" | "Docente" | "Administrador";
-  status: "active" | "inactive";
-  lastConnection: string;
-  registrationDate: string;
-}
-
-interface Class {
-  id: string;
+type ActiveSession = {
+  id: number;
   className: string;
   teacher: string;
   studentsCount: number;
   startTime: string;
   averageAttention: number;
+};
+
+type Course = {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  created_at: string;
+};
+
+interface User {
+  id: number;              // ahora numérico
+  userCode: string;
+  name: string;
+  email: string;
+  role: "Student" | "Teacher" | "Admin";
+  status: "active" | "inactive";
+  lastConnection: string;
+  registrationDate: string;
 }
 
 interface AdminDashboardProps {
@@ -58,40 +67,123 @@ interface AdminDashboardProps {
 export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [currentView, setCurrentView] = useState<ViewType>("overview");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // datos principales
+  const [users, setUsers] = useState<User[]>([]);
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+
+  // dialogs / ui
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);
-  const [users, setUsers] = useState<User[]>([]);
-  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
 
-  // Cargar usuarios desde la API
+  // nuevo curso
+  const [newCourse, setNewCourse] = useState({
+    code: "",
+    name: "",
+    description: "",
+  });
+
+  // selección por curso
+  const [selectedTeacherByCourse, setSelectedTeacherByCourse] = useState<
+    Record<number, string | number>
+  >({});
+  const [selectedStudentByCourse, setSelectedStudentByCourse] = useState<
+    Record<number, string | number>
+  >({});
+
+  console.log("USERS ADMIN:", users);
+
+  // derivados de usuarios
+  const teachers = users.filter((u) => u.role === "Teacher");
+  const students = users.filter((u) => u.role === "Student");
+
+
+  // carga inicial
   useEffect(() => {
     const loadData = async () => {
       try {
-        const token = localStorage.getItem('authToken');
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+
         const [usersRes, sessionsRes] = await Promise.all([
-          api.get('/admin/users/'),
-          api.get('/admin/active-sessions/')
+          api.get("/admin/users/"),
+          api.get("/admin/active-sessions/"),
         ]);
         setUsers(usersRes.data);
         setActiveSessions(sessionsRes.data);
+
+        const coursesRes = await api.get("/admin/courses/");
+        setCourses(coursesRes.data);
       } catch (error) {
-        console.error('Error loading admin data:', error);
+        console.error("Error loading admin data:", error);
       }
     };
     loadData();
   }, []);
 
-  // Mock data - Distribución de roles
+  // crear curso
+  const handleCreateCourse = async () => {
+    if (!newCourse.code || !newCourse.name) return;
+    try {
+      const resp = await api.post("/admin/courses/", newCourse);
+      setCourses((prev) => [...prev, resp.data]);
+      setNewCourse({ code: "", name: "", description: "" });
+      toast.success("Curso creado exitosamente");
+    } catch (e) {
+      console.error("Error creating course", e);
+      toast.error("Error al crear curso");
+    }
+  };
+
+  // asignar profesor
+  const handleAssignTeacher = async (courseId: number) => {
+    const teacherId = selectedTeacherByCourse[courseId];
+    if (!teacherId) return;
+    try {
+      await api.post("/admin/assign-teacher/", {
+        course_id: courseId,
+        teacher_id: teacherId,
+      });
+      toast.success("Profesor asignado correctamente");
+      setSelectedTeacherByCourse((prev) => ({ ...prev, [courseId]: "" }));
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al asignar profesor");
+    }
+  };
+
+  // matricular estudiante
+  const handleEnrollStudent = async (courseId: number) => {
+    const studentId = selectedStudentByCourse[courseId];
+    if (!studentId) return;
+    try {
+      await api.post("/admin/enroll-student/", {
+        course_id: courseId,
+        student_id: studentId,
+      });
+      toast.success("Estudiante matriculado correctamente");
+      setSelectedStudentByCourse((prev) => ({ ...prev, [courseId]: "" }));
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al matricular estudiante");
+    }
+  };
+
+  // gráficos mock
   const roleDistribution = [
-    { name: "Estudiantes", value: 120, color: "#ff6b35" },
-    { name: "Docentes", value: 15, color: "#2a2a2a" },
-    { name: "Administradores", value: 3, color: "#6b7280" },
+    { name: "Estudiantes", value: students.length || 120, color: "#ff6b35" },
+    { name: "Docentes", value: teachers.length || 15, color: "#2a2a2a" },
+    {
+      name: "Administradores",
+      value: users.length - (students.length + teachers.length),
+      color: "#6b7280",
+    },
   ];
 
-  // Mock data - Atención promedio por semana
   const weeklyAttentionData = [
     { week: "Sem 1", attention: 78 },
     { week: "Sem 2", attention: 82 },
@@ -100,18 +192,16 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     { week: "Sem 5", attention: 88 },
   ];
 
-  const totalStudents = users.filter(u => u.role === "Estudiante").length;
-  const totalTeachers = users.filter(u => u.role === "Docente").length;
-  const totalAdmins = users.filter(u => u.role === "Administrador").length;
-  const activeUsers = users.filter(u => u.status === "active").length;
   const globalAverageAttention = 82;
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+const filteredUsers = users.filter((user) =>
+  user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  String(user.id).includes(searchQuery) || // usar id numérico como string
+  user.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  user.userCode.toLowerCase().includes(searchQuery.toLowerCase()) // opcional
+);
+
 
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
@@ -130,8 +220,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   };
 
   const getStatusColor = (status: string) => {
-    return status === "active" 
-      ? "text-green-600 bg-green-100" 
+    return status === "active"
+      ? "text-green-600 bg-green-100"
       : "text-gray-600 bg-gray-100";
   };
 
@@ -236,7 +326,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </div>
               
               <div className="flex items-center space-x-4">
-                {/* Notifications */}
                 <button className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                   <Bell className="w-5 h-5" />
                   {notificationCount > 0 && (
@@ -246,7 +335,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   )}
                 </button>
 
-                {/* Admin Profile */}
                 <div className="flex items-center space-x-3 pl-4 border-l">
                   <div className="text-right">
                     <p className="text-sm text-gray-900">Carlos Admin</p>
@@ -262,7 +350,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
           {/* Content Area */}
           <div className="flex-1 p-8 overflow-y-auto">
-            {/* Overview View */}
+            {/* Resumen */}
             {currentView === "overview" && (
               <div>
                 <div className="mb-8">
@@ -270,7 +358,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <p className="text-gray-600">Vista global del sistema</p>
                 </div>
 
-                {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                   <Card className="border-l-4 border-l-orange-500">
                     <CardHeader className="pb-3">
@@ -278,10 +365,10 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between">
-                        <span className="text-orange-600">120</span>
+                        <span className="text-orange-600">{students.length}</span>
                         <Users className="w-5 h-5 text-orange-600" />
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">Total registrados: {totalStudents}</p>
+                      <p className="text-sm text-gray-500 mt-1">Total registrados</p>
                     </CardContent>
                   </Card>
 
@@ -291,16 +378,16 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between">
-                        <span className="text-blue-600">{totalTeachers}</span>
+                        <span className="text-blue-600">{teachers.length}</span>
                         <GraduationCap className="w-5 h-5 text-blue-600" />
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">Activos: {totalTeachers}</p>
+                      <p className="text-sm text-gray-500 mt-1">Activos</p>
                     </CardContent>
                   </Card>
 
                   <Card className="border-l-4 border-l-green-500">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-sm text-gray-600">Atenci��n Global</CardTitle>
+                      <CardTitle className="text-sm text-gray-600">Atención Global</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between">
@@ -325,9 +412,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </Card>
                 </div>
 
-                {/* Charts Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                  {/* Line Chart - Weekly Attention */}
                   <Card>
                     <CardHeader>
                       <CardTitle>Atención Promedio Semanal</CardTitle>
@@ -339,19 +424,19 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                           <XAxis dataKey="week" tick={{ fontSize: 12 }} />
                           <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                          <Tooltip 
+                          <Tooltip
                             contentStyle={{ 
-                              backgroundColor: '#fff',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '8px'
+                              backgroundColor: "#fff",
+                              border: "1px solid #e5e7eb",
+                              borderRadius: "8px"
                             }}
                           />
-                          <Line 
-                            type="monotone" 
-                            dataKey="attention" 
-                            stroke="#ff6b35" 
+                          <Line
+                            type="monotone"
+                            dataKey="attention"
+                            stroke="#ff6b35"
                             strokeWidth={3}
-                            dot={{ fill: '#ff6b35', r: 5 }}
+                            dot={{ fill: "#ff6b35", r: 5 }}
                             activeDot={{ r: 7 }}
                           />
                         </LineChart>
@@ -359,7 +444,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     </CardContent>
                   </Card>
 
-                  {/* Pie Chart - Role Distribution */}
                   <Card>
                     <CardHeader>
                       <CardTitle>Distribución de Roles</CardTitle>
@@ -389,7 +473,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </Card>
                 </div>
 
-                {/* Recent Connections */}
                 <Card>
                   <CardHeader>
                     <CardTitle>Últimos Usuarios Conectados</CardTitle>
@@ -400,12 +483,12 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       {users
                         .filter(u => u.status === "active")
                         .slice(0, 5)
-                        .map((user) => (
-                          <div 
+                        .map(user => (
+                          <div
                             key={user.id}
                             className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                           >
-                            <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-3">
                               <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white">
                                 {user.name.charAt(0)}
                               </div>
@@ -428,7 +511,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </div>
             )}
 
-            {/* Users Management View */}
+            {/* Gestión de usuarios */}
             {currentView === "users" && (
               <div>
                 <div className="mb-8 flex items-center justify-between">
@@ -442,7 +525,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </Button>
                 </div>
 
-                {/* Search and Filter */}
                 <div className="mb-6 flex gap-4">
                   <div className="flex-1 relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -467,7 +549,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </Select>
                 </div>
 
-                {/* Users Table */}
                 <Card>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">
@@ -484,7 +565,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {filteredUsers.map((user) => (
+                          {filteredUsers.map(user => (
                             <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                               <td className="px-6 py-4 text-sm text-gray-900">{user.id}</td>
                               <td className="px-6 py-4">
@@ -535,7 +616,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </div>
             )}
 
-            {/* Sessions View */}
+            {/* Sesiones activas */}
             {currentView === "sessions" && (
               <div>
                 <div className="mb-8">
@@ -544,7 +625,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 </div>
 
                 <div className="grid gap-6">
-                  {activeSessions.map((session) => (
+                  {activeSessions.map(session => (
                     <Card key={session.id} className="border-l-4 border-l-orange-500">
                       <CardContent className="p-6">
                         <div className="flex items-center justify-between">
@@ -600,7 +681,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </div>
             )}
 
-            {/* Stats View */}
+            {/* Estadísticas */}
             {currentView === "stats" && (
               <div>
                 <div className="mb-8">
@@ -636,46 +717,182 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
               </div>
             )}
 
-            {/* Config View */}
+            {/* Configuración + Gestión de cursos */}
             {currentView === "config" && (
               <div>
                 <div className="mb-8">
                   <h2 className="text-gray-900 mb-2">Configuración del Sistema</h2>
-                  <p className="text-gray-600">Ajustes generales</p>
+                  <p className="text-gray-600">Ajustes generales y gestión de cursos</p>
                 </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Configuración General</CardTitle>
-                    <CardDescription>Personaliza el comportamiento del sistema</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div>
-                      <Label>Nombre del Sistema</Label>
-                      <Input defaultValue="FocusLearn" className="mt-2" />
-                    </div>
-                    <div>
-                      <Label>Email de Contacto</Label>
-                      <Input defaultValue="contacto@focuslearn.com" className="mt-2" />
-                    </div>
-                    <div>
-                      <Label>Umbral de Atención Bajo (%)</Label>
-                      <Input type="number" defaultValue="50" className="mt-2" />
-                    </div>
-                    <div>
-                      <Label>Umbral de Atención Alto (%)</Label>
-                      <Input type="number" defaultValue="80" className="mt-2" />
-                    </div>
-                    <Button>Guardar Cambios</Button>
-                  </CardContent>
-                </Card>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Configuración General</CardTitle>
+                      <CardDescription>Personaliza el comportamiento del sistema</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div>
+                        <Label>Nombre del Sistema</Label>
+                        <Input defaultValue="FocusLearn" className="mt-2" />
+                      </div>
+                      <div>
+                        <Label>Email de Contacto</Label>
+                        <Input defaultValue="contacto@focuslearn.com" className="mt-2" />
+                      </div>
+                      <div>
+                        <Label>Umbral de Atención Bajo (%)</Label>
+                        <Input type="number" defaultValue="50" className="mt-2" />
+                      </div>
+                      <div>
+                        <Label>Umbral de Atención Alto (%)</Label>
+                        <Input type="number" defaultValue="80" className="mt-2" />
+                      </div>
+                      <Button>Guardar Cambios</Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Gestión de cursos */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Gestión de Cursos</CardTitle>
+                      <CardDescription>Crea y administra los cursos del sistema</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Formulario Crear Curso */}
+                      <div className="grid grid-cols-1 gap-3">
+                        <div>
+                          <Label>Código del curso</Label>
+                          <Input
+                            className="mt-1"
+                            placeholder="CG101"
+                            value={newCourse.code}
+                            onChange={e =>
+                              setNewCourse({ ...newCourse, code: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Nombre del curso</Label>
+                          <Input
+                            className="mt-1"
+                            placeholder="Computación Gráfica"
+                            value={newCourse.name}
+                            onChange={e =>
+                              setNewCourse({ ...newCourse, name: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Descripción</Label>
+                          <Input
+                            className="mt-1"
+                            placeholder="Descripción breve del curso"
+                            value={newCourse.description}
+                            onChange={e =>
+                              setNewCourse({ ...newCourse, description: e.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <Button onClick={handleCreateCourse}>
+                        Crear curso
+                      </Button>
+
+                      <Separator className="my-4" />
+
+                      {/* Lista de Cursos Existentes con Asignación */}
+                      <div>
+                        <h3 className="font-semibold mb-2 text-sm">
+                          Cursos existentes
+                        </h3>
+                        {courses.length === 0 ? (
+                          <p className="text-gray-500 text-sm">
+                            Aún no hay cursos registrados.
+                          </p>
+                        ) : (
+                          <div className="space-y-4">
+                            {courses.map((c) => (
+                              <div key={c.id} className="border border-gray-200 rounded-lg p-4 flex flex-col gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-900">
+                                    {c.code} — {c.name}
+                                  </p>
+                                  <p className="text-xs text-gray-500">{c.description}</p>
+                                </div>
+
+                                {/* Asignar profesor */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-xs font-medium text-gray-700">Profesor asignado:</span>
+                                  <select
+                                    className="border border-gray-300 rounded px-2 py-1 text-xs"
+                                    value={selectedTeacherByCourse[c.id] ?? ""}
+                                    onChange={(e) =>
+                                      setSelectedTeacherByCourse((prev) => ({
+                                        ...prev,
+                                        [c.id]: e.target.value,
+                                      }))
+                                    }
+                                  >
+                                    <option value="">Seleccionar docente…</option>
+                                    {teachers.map((t) => (
+                                      <option key={t.id} value={t.id}>
+                                        {t.name} ({t.email})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    className="inline-flex items-center rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                                    disabled={!selectedTeacherByCourse[c.id]}
+                                    onClick={() => handleAssignTeacher(c.id)}
+                                  >
+                                    Asignar profesor
+                                  </button>
+                                </div>
+
+                                {/* Matricular estudiante */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-xs font-medium text-gray-700">Matricular estudiante:</span>
+                                  <select
+                                    className="border border-gray-300 rounded px-2 py-1 text-xs"
+                                    value={selectedStudentByCourse[c.id] ?? ""}
+                                    onChange={(e) =>
+                                      setSelectedStudentByCourse((prev) => ({
+                                        ...prev,
+                                        [c.id]: e.target.value,
+                                      }))
+                                    }
+                                  >
+                                    <option value="">Seleccionar estudiante…</option>
+                                    {students.map((s) => (
+                                      <option key={s.id} value={s.id}>
+                                        {s.name} ({s.email})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    className="inline-flex items-center rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                                    disabled={!selectedStudentByCourse[c.id]}
+                                    onClick={() => handleEnrollStudent(c.id)}
+                                  >
+                                    Matricular
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             )}
           </div>
         </main>
       </div>
 
-      {/* Add User Dialog */}
+      {/* Diálogos de usuarios */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
@@ -721,7 +938,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
             </Button>
             <Button onClick={() => {
               setShowAddDialog(false);
-              // Aquí iría la lógica para agregar el usuario
+              // lógica para crear usuario
             }}>
               Agregar Usuario
             </Button>
@@ -729,7 +946,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Edit User Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
           <DialogHeader>
@@ -768,7 +984,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
             </Button>
             <Button onClick={() => {
               setShowEditDialog(false);
-              // Aquí iría la lógica para editar el usuario
+              // lógica para actualizar usuario
             }}>
               Guardar Cambios
             </Button>
@@ -776,7 +992,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Delete User Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
@@ -797,7 +1012,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
             </Button>
             <Button variant="destructive" onClick={() => {
               setShowDeleteDialog(false);
-              // Aquí iría la lógica para eliminar el usuario
+              // lógica para eliminar usuario
             }}>
               Eliminar Usuario
             </Button>
