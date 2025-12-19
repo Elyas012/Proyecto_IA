@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -33,9 +33,30 @@ export function StudentReport({ onBack }: StudentReportProps) {
   // Student info (fetched)
   const [user, setUser] = useState<any | null>(null);
   const [courses, setCourses] = useState<any[]>([]);
+  const [studentInfo, setStudentInfo] = useState<any>({ name: 'Estudiante', career: '-', semester: '-' });
+
+  // Report state
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportData, setReportData] = useState<any | null>(null);
+  const [generalMetrics, setGeneralMetrics] = useState<any>({
+    averageAttention: 0,
+    totalSessions: 0,
+    attendedSessions: 0,
+    totalMinutes: 0,
+    trend: 'stable',
+  });
+  const [attentionTimeline, setAttentionTimeline] = useState<any[]>([]);
+  const [attentionByHour, setAttentionByHour] = useState<any[]>([]);
+  const [heatmapData, setHeatmapData] = useState<any[]>([]);
+  const [classComparison, setClassComparison] = useState<any[]>([]);
+  const [pomodoroMetrics, setPomodoroMetrics] = useState<any>({});
+
+  // PDF generation
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const reportRef = useRef<HTMLDivElement | null>(null);
 
   const fetchUserAndCourses = async () => {
-    const token = (typeof window !== 'undefined') ? (localStorage.getItem('authToken') || process.env.NEXT_PUBLIC_DEV_TOKEN) : null;
+    const token = (typeof window !== 'undefined') ? localStorage.getItem('authToken') : null;
     if (!token) {
       setUser(null);
       setCourses([]);
@@ -45,6 +66,11 @@ export function StudentReport({ onBack }: StudentReportProps) {
     try {
       const resp = await (await import('../lib/api')).default.get('/auth/me/');
       setUser(resp.data);
+      setStudentInfo({
+        name: `${resp.data.first_name || resp.data.username || resp.data.email}`,
+        career: resp.data.career || '-',
+        semester: resp.data.semester || '-',
+      });
     } catch (err) {
       setUser(null);
     }
@@ -52,8 +78,41 @@ export function StudentReport({ onBack }: StudentReportProps) {
     try {
       const resp2 = await (await import('../lib/api')).default.get('/student/courses/');
       setCourses(resp2.data);
+      if (resp2.data && resp2.data.length > 0) {
+        setSelectedSubject(String(resp2.data[0].id));
+      }
     } catch (err) {
       setCourses([]);
+    }
+  };
+
+  const fetchReport = async () => {
+    setReportLoading(true);
+    try {
+      const api = (await import('../lib/api')).default;
+      const resp = await api.get('/student/report/', { params: { period: selectedPeriod, subject: selectedSubject } });
+      setReportData(resp.data);
+
+      // Map to UI state with safe fallbacks and camelCase conversion
+      const s = resp.data.summary || {};
+      setGeneralMetrics({
+        averageAttention: s.average_attention || 0,
+        totalSessions: s.total_sessions || 0,
+        attendedSessions: s.attended_sessions || s.total_sessions || 0,
+        totalMinutes: s.total_minutes || 0,
+        trend: s.trend || 'stable',
+        period: s.period || selectedPeriod
+      });
+      setAttentionTimeline(resp.data.timeline || []);
+      setAttentionByHour((resp.data.by_hour || []).map((h: any) => ({ hour: `${h.hour}:00`, attention: h.attention })));
+      setHeatmapData(resp.data.heatmap || []);
+      setClassComparison(resp.data.class_comparison || []);
+      setPomodoroMetrics(resp.data.pomodoro_metrics || {});
+    } catch (err) {
+      // If API fails, keep previous or default/mock data
+      console.error('Failed to load report', err);
+    } finally {
+      setReportLoading(false);
     }
   };
 
@@ -62,64 +121,198 @@ export function StudentReport({ onBack }: StudentReportProps) {
     fetchUserAndCourses();
   }, []);
 
-  // Mock data - Métricas generales
-  const generalMetrics = {
-    averageAttention: 78,
-    totalSessions: 24,
-    attendedSessions: 22,
-    totalMinutes: 1440,
-    trend: "up", // up, down, stable
+  useEffect(() => {
+    // refetch report when period or subject changes
+    fetchReport();
+  }, [selectedPeriod, selectedSubject]);
+
+  // Fallbacks for heatmap and classComparison when not provided
+  useEffect(() => {
+    if (!heatmapData || heatmapData.length === 0) {
+      setHeatmapData([
+        { day: "Lun", morning: 75, afternoon: 82, evening: 70 },
+        { day: "Mar", morning: 80, afternoon: 85, evening: 78 },
+        { day: "Mié", morning: 72, afternoon: 88, evening: 75 },
+        { day: "Jue", morning: 85, afternoon: 90, evening: 82 },
+        { day: "Vie", morning: 88, afternoon: 86, evening: 80 },
+      ]);
+    }
+
+    if (!classComparison || classComparison.length === 0) {
+      setClassComparison([
+        { metric: "Atención", student: 78, classAvg: 75 },
+        { metric: "Asistencia", student: 92, classAvg: 85 },
+        { metric: "Participación", student: 70, classAvg: 72 },
+      ]);
+    }
+  }, []);
+
+  const generateReportHTML = (data: any) => {
+    const s = data.summary || {};
+    const timeline = data.timeline || [];
+    const byHour = data.by_hour || [];
+    const classComp = data.class_comparison || [];
+    const pom = data.pomodoro_metrics || {};
+
+    const formatMinutes = (mins: number) => `${Math.floor(mins/60)}h ${mins%60}m`;
+
+    return `
+      <!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Reporte de Atención</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color: #111827; padding: 28px; }
+          .header { display:flex; justify-content:space-between; align-items:center; border-bottom: 4px solid #ff7a34; padding-bottom:12px; margin-bottom:18px }
+          .title { font-size:20px; font-weight:700 }
+          .badge { background: linear-gradient(90deg,#f97316,#fb923c); color: white; padding:6px 10px; border-radius:8px; font-weight:600 }
+          .section { margin-top:18px }
+          .grid { display:grid; grid-template-columns: repeat(2,1fr); gap:12px }
+          .card { border:1px solid #e6e6e6; padding:12px; border-radius:8px; background: #fff }
+          table { width:100%; border-collapse:collapse; margin-top:8px }
+          th, td { padding:8px; text-align:left; border-bottom:1px solid #f0f0f0 }
+          th { background:#fafafa; font-weight:600 }
+          .small { font-size:12px; color:#6b7280 }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="title">Reporte Individual de Atención</div>
+            <div class="small">Generado: ${new Date().toLocaleString()}</div>
+          </div>
+          <div class="badge">Periodo: ${s.period || selectedPeriod}</div>
+        </div>
+
+        <div class="section grid">
+          <div class="card">
+            <h3>Resumen</h3>
+            <p><strong>Atención promedio:</strong> ${s.average_attention || s.averageAttention || 0}%</p>
+            <p><strong>Sesiones:</strong> ${s.total_sessions || s.totalSessions || 0}</p>
+            <p><strong>Tiempo efectivo:</strong> ${formatMinutes(s.total_minutes || s.totalMinutes || 0)}</p>
+          </div>
+
+          <div class="card">
+            <h3>Pomodoro</h3>
+            <p><strong>Eventos:</strong> ${pom.total_events || 0}</p>
+            <p><strong>Pausas automáticas:</strong> ${pom.auto_pauses || 0}</p>
+            <p><strong>Tiempo efectivo:</strong> ${formatMinutes(pom.effective_minutes || pom.effective_seconds || 0)}</p>
+          </div>
+        </div>
+
+        <div class="section card">
+          <h3>Evolución temporal (últimas sesiones)</h3>
+          <table>
+            <thead><tr><th>Fecha / Hora</th><th>Atención</th></tr></thead>
+            <tbody>
+              ${timeline.map((t: any) => `<tr><td>${new Date(t.timestamp).toLocaleString()}</td><td>${t.attention}%</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section grid">
+          <div class="card">
+            <h3>Atención por hora</h3>
+            <table>
+              <thead><tr><th>Hora</th><th>Atención</th></tr></thead>
+              <tbody>${byHour.map((h: any) => `<tr><td>${h.hour}:00</td><td>${h.attention}%</td></tr>`).join('')}</tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <h3>Comparación con grupo</h3>
+            <table>
+              <thead><tr><th>Curso</th><th>Tu promedio</th><th>Promedio grupo</th></tr></thead>
+              <tbody>${classComp.map((c: any) => `<tr><td>${c.course_name || c.course}</td><td>${c.student_avg}%</td><td>${c.class_avg}%</td></tr>`).join('')}</tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="small" style="margin-top:18px;">Reporte generado por Proyecto_IA — usa estos datos para mejorar tu desempeño.</div>
+      </body>
+      </html>
+    `;
   };
 
-  // Subjects - use enrolled courses when available
-  const subjects = courses.length > 0 ? courses.map(c => ({ id: String(c.id), name: c.name })) : [
-    { id: "algorithms", name: "Algoritmos y Estructuras de Datos" },
-    { id: "databases", name: "Bases de Datos" },
-    { id: "networks", name: "Redes de Computadoras" },
-    { id: "ai", name: "Inteligencia Artificial" },
-  ];
+  const downloadReport = () => {
+    const data = reportData || {
+      summary: generalMetrics,
+      timeline: attentionTimeline,
+      by_hour: attentionByHour,
+      class_comparison: classComparison,
+      pomodoro_metrics: pomodoroMetrics,
+    };
 
-  // Mock data - Evolución temporal de atención
-  const attentionTimeline = [
-    { date: "01/10", attention: 72, sessions: 1 },
-    { date: "03/10", attention: 75, sessions: 1 },
-    { date: "05/10", attention: 68, sessions: 1 },
-    { date: "08/10", attention: 82, sessions: 1 },
-    { date: "10/10", attention: 85, sessions: 1 },
-    { date: "12/10", attention: 79, sessions: 1 },
-    { date: "15/10", attention: 88, sessions: 1 },
-    { date: "17/10", attention: 86, sessions: 1 },
-    { date: "19/10", attention: 90, sessions: 1 },
-    { date: "22/10", attention: 84, sessions: 1 },
-  ];
+    // Abrir nueva ventana con HTML listo para imprimir -> guardar como PDF desde el diálogo de impresión
+    try {
+      const html = generateReportHTML(data);
+      const w = window.open('', '_blank', 'noopener');
+      if (!w) throw new Error('Win blocked');
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
 
-  // Mock data - Atención por hora del día
-  const attentionByHour = [
-    { hour: "8:00", attention: 65 },
-    { hour: "9:00", attention: 72 },
-    { hour: "10:00", attention: 85 },
-    { hour: "11:00", attention: 88 },
-    { hour: "12:00", attention: 75 },
-    { hour: "14:00", attention: 70 },
-    { hour: "15:00", attention: 82 },
-    { hour: "16:00", attention: 90 },
-  ];
+      // Esperar un breve momento para que el navegador renderice, luego lanzar impresión
+      setTimeout(() => {
+        w.focus();
+        w.print();
+        // No cerrar automáticamente — algunos navegadores bloquean close(). Dejar en manos del usuario.
+      }, 600);
+    } catch (err) {
+      console.error('Error generando PDF, se descargará JSON como fallback', err);
+      // fallback JSON
+      try {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `student_report_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error('Error descargando fallback JSON', e);
+      }
+    }
+  };
 
-  // Mock data - Heatmap por día de la semana y hora
-  const heatmapData = [
-    { day: "Lun", morning: 75, afternoon: 82, evening: 70 },
-    { day: "Mar", morning: 80, afternoon: 85, evening: 78 },
-    { day: "Mié", morning: 72, afternoon: 88, evening: 75 },
-    { day: "Jue", morning: 85, afternoon: 90, evening: 82 },
-    { day: "Vie", morning: 88, afternoon: 86, evening: 80 },
-  ];
+  // New: PDF generation using html2canvas + jsPDF
+  const downloadPDF = async () => {
+    setPdfGenerating(true);
+    const data = reportData || {
+      summary: generalMetrics,
+      timeline: attentionTimeline,
+      by_hour: attentionByHour,
+      class_comparison: classComparison,
+      pomodoro_metrics: pomodoroMetrics,
+    };
 
-  // Mock data - Comparación con el promedio de clase
-  const classComparison = [
-    { metric: "Atención", student: 78, classAvg: 75 },
-    { metric: "Asistencia", student: 92, classAvg: 85 },
-    { metric: "Participación", student: 70, classAvg: 72 },
-  ];
+    try {
+      // Ensure the report DOM is updated (we render a hidden copy below)
+      await new Promise((r) => setTimeout(r, 120));
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      if (!reportRef.current) throw new Error('Elemento de reporte no encontrado');
+      const canvas = await html2canvas(reportRef.current, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`student_report_${new Date().toISOString().slice(0,10)}.pdf`);
+    } catch (err) {
+      console.error('Error generando PDF, abriendo impresión como fallback', err);
+      // fallback a imprimir o JSON
+      downloadReport();
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
 
   const getPerformanceColor = (value: number) => {
     if (value >= 85) return "text-green-600 bg-green-50 border-green-200";
@@ -157,15 +350,23 @@ export function StudentReport({ onBack }: StudentReportProps) {
       });
     }
 
-    // Análisis de horarios
-    const bestHour = attentionByHour.reduce((prev, current) => 
-      prev.attention > current.attention ? prev : current
-    );
-    recommendations.push({
-      type: "info",
-      title: "Horario óptimo identificado",
-      text: `Tu mejor rendimiento se registra a las ${bestHour.hour} con un ${bestHour.attention}% de atención. Intenta programar actividades importantes en este horario.`,
-    });
+    // Análisis de horarios (protegido contra arrays vacíos)
+    if (Array.isArray(attentionByHour) && attentionByHour.length > 0) {
+      const bestHour = attentionByHour.reduce((prev, current) => 
+        prev.attention > current.attention ? prev : current
+      );
+      recommendations.push({
+        type: "info",
+        title: "Horario óptimo identificado",
+        text: `Tu mejor rendimiento se registra a las ${bestHour.hour} con un ${bestHour.attention}% de atención. Intenta programar actividades importantes en este horario.`,
+      });
+    } else {
+      recommendations.push({
+        type: "info",
+        title: "Horario óptimo no disponible",
+        text: "Aún no hay datos suficientes por horario. Asiste a más sesiones para que el sistema identifique tu mejor franja horaria.",
+      });
+    }
 
     // Tendencia
     if (generalMetrics.trend === "up") {
@@ -216,9 +417,9 @@ export function StudentReport({ onBack }: StudentReportProps) {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Volver al Dashboard
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => downloadPDF()} disabled={reportLoading || pdfGenerating}>
             <Download className="w-4 h-4 mr-2" />
-            Descargar Reporte
+            {pdfGenerating ? 'Generando PDF...' : (reportLoading ? 'Generando...' : 'Descargar Reporte')}
           </Button>
         </div>
         
@@ -230,7 +431,7 @@ export function StudentReport({ onBack }: StudentReportProps) {
             </p>
           </div>
           <Badge className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
-            Período: Octubre 2025
+            Período: {reportData?.summary?.period || (selectedPeriod === 'month' ? 'Último mes' : selectedPeriod)}
           </Badge>
         </div>
       </div>
@@ -246,8 +447,8 @@ export function StudentReport({ onBack }: StudentReportProps) {
                 <SelectValue placeholder="Seleccionar materia" />
               </SelectTrigger>
               <SelectContent>
-                {subjects.map((subject) => (
-                  <SelectItem key={subject.id} value={subject.id}>
+                {courses.map((subject: any) => (
+                  <SelectItem key={subject.id} value={String(subject.id)}>
                     {subject.name}
                   </SelectItem>
                 ))}
@@ -281,7 +482,7 @@ export function StudentReport({ onBack }: StudentReportProps) {
               <div>
                 <p className="text-sm text-gray-600 mb-1">Materia</p>
                 <p className="text-gray-900">
-                  {subjects.find(s => s.id === selectedSubject)?.name}
+                  {courses.find((s: any) => String(s.id) === selectedSubject)?.name}
                 </p>
               </div>
               <div>
@@ -294,7 +495,7 @@ export function StudentReport({ onBack }: StudentReportProps) {
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Fecha de generación</p>
-                <p className="text-gray-900">24 Oct 2025</p>
+                <p className="text-gray-900">{new Date().toLocaleDateString()}</p>
               </div>
             </div>
           </CardContent>
@@ -513,6 +714,63 @@ export function StudentReport({ onBack }: StudentReportProps) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Hidden printable report area (off-screen for PDF capture) */}
+        <div ref={reportRef as any} style={{ position: 'absolute', left: -9999, top: 0, width: 800, background: '#fff', padding: 24 }} aria-hidden>
+          <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial', color: '#111827' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '4px solid #ff7a34', paddingBottom: 12, marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>Reporte Individual de Atención</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Generado: {new Date().toLocaleString()}</div>
+              </div>
+              <div style={{ background: 'linear-gradient(90deg,#f97316,#fb923c)', color: 'white', padding: '6px 10px', borderRadius: 8, fontWeight: 600 }}>Periodo: {generalMetrics.period || selectedPeriod}</div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ border: '1px solid #e6e6e6', padding: 12, borderRadius: 8 }}>
+                <h3>Resumen</h3>
+                <p><strong>Atención promedio:</strong> {generalMetrics.averageAttention}%</p>
+                <p><strong>Sesiones:</strong> {generalMetrics.totalSessions}</p>
+                <p><strong>Tiempo efectivo:</strong> {Math.floor(generalMetrics.totalMinutes/60)}h {generalMetrics.totalMinutes%60}m</p>
+              </div>
+
+              <div style={{ border: '1px solid #e6e6e6', padding: 12, borderRadius: 8 }}>
+                <h3>Pomodoro</h3>
+                <p><strong>Eventos:</strong> {pomodoroMetrics.total_events || 0}</p>
+                <p><strong>Pausas automáticas:</strong> {pomodoroMetrics.auto_pauses || 0}</p>
+                <p><strong>Tiempo efectivo:</strong> {Math.floor((pomodoroMetrics.effective_minutes||pomodoroMetrics.effective_seconds||0)/60)}h {(pomodoroMetrics.effective_minutes||pomodoroMetrics.effective_seconds||0)%60}m</p>
+              </div>
+            </div>
+
+            <div style={{ border: '1px solid #e6e6e6', padding: 12, borderRadius: 8, marginTop: 12 }}>
+              <h3>Evolución temporal (últimas sesiones)</h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+                <thead><tr style={{ background: '#fafafa', fontWeight: 600 }}><th style={{ padding: 8, textAlign: 'left' }}>Fecha / Hora</th><th style={{ padding: 8, textAlign: 'left' }}>Atención</th></tr></thead>
+                <tbody>{attentionTimeline.map((t, i) => <tr key={'r-'+i}><td style={{ padding:8 }}>{new Date(t.timestamp).toLocaleString()}</td><td style={{ padding:8 }}>{t.attention}%</td></tr>)}</tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+              <div style={{ border: '1px solid #e6e6e6', padding: 12, borderRadius: 8 }}>
+                <h3>Atención por hora</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+                  <thead><tr style={{ background: '#fafafa', fontWeight: 600 }}><th style={{ padding:8 }}>Hora</th><th style={{ padding:8 }}>Atención</th></tr></thead>
+                  <tbody>{(attentionByHour||[]).map((h, idx) => <tr key={'h-'+idx}><td style={{ padding:8 }}>{String(h.hour)}:00</td><td style={{ padding:8 }}>{h.attention}%</td></tr>)}</tbody>
+                </table>
+              </div>
+
+              <div style={{ border: '1px solid #e6e6e6', padding: 12, borderRadius: 8 }}>
+                <h3>Comparación con grupo</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+                  <thead><tr style={{ background: '#fafafa', fontWeight: 600 }}><th style={{ padding:8 }}>Curso</th><th style={{ padding:8 }}>Tu promedio</th><th style={{ padding:8 }}>Promedio grupo</th></tr></thead>
+                  <tbody>{(classComparison||[]).map((c,idx) => <tr key={'c-'+idx}><td style={{ padding:8 }}>{c.course_name || c.course}</td><td style={{ padding:8 }}>{c.student_avg}%</td><td style={{ padding:8 }}>{c.class_avg}%</td></tr>)}</tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 12 }}>Reporte generado por Proyecto_IA — usa estos datos para mejorar tu desempeño.</div>
+          </div>
+        </div>
 
         {/* Comparison with Class Average */}
         <Card className="mb-8">

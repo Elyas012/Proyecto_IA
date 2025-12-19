@@ -62,13 +62,7 @@ While analyzing, the client will periodically send computed facial features (EAR
 Development authentication helper
 ---------------------------------
 
-To make testing authenticated endpoints easier, you can set a dev token in `fronted_nextjs/.env.local`:
-
-```
-NEXT_PUBLIC_DEV_TOKEN=4db18195974982419d2743e6c10a081b85740742
-```
-
-On the `StudentDashboard` page there's an `Auth Dev Token` button that will inject this token into `localStorage` and retry the courses request.
+To test authenticated endpoints during development, set an auth token in `localStorage` under the key `authToken` or use the app's login UI.
 - The Pomodoro timer is adaptive: only "effective" focused time (attention >= 50) is counted; sustained distraction advances the break automatically.
 - For production, replace the demo model with trained weights and improve feature selection and thresholds.
 

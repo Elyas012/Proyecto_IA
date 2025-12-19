@@ -19,13 +19,7 @@ api.interceptors.request.use(
     }
 
     if (typeof window !== "undefined") {
-      let token = localStorage.getItem("authToken");
-      if (!token && process.env.NEXT_PUBLIC_DEV_TOKEN) {
-        token = process.env.NEXT_PUBLIC_DEV_TOKEN;
-        try {
-          localStorage.setItem("authToken", token);
-        } catch {}
-      }
+      const token = localStorage.getItem("authToken");
       if (token) {
         config.headers = config.headers || {};
         config.headers.Authorization = `Token ${token}`;
@@ -41,7 +35,7 @@ api.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401) {
       console.warn(
-        "API request returned 401. Ensure an auth token is set in localStorage (authToken) or NEXT_PUBLIC_DEV_TOKEN."
+        "API request returned 401. Ensure an auth token is set in localStorage (authToken)."
       );
     }
     return Promise.reject(error);

@@ -335,6 +335,91 @@ def pomodoro_metrics(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def student_report(request):
+    """Return an aggregated report for the authenticated student.
+
+    Response JSON structure:
+    {
+      "summary": { "average_attention": 78, "total_sessions": 10, "total_minutes": 600 },
+      "timeline": [{"timestamp": "2025-12-01T10:00:00Z","attention": 78}, ...],
+      "by_hour": [{"hour": 10, "attention": 82}, ...],
+      "class_comparison": [{"course": "ALG101","student_avg": 78, "class_avg": 71}],
+      "pomodoro_metrics": { ... }
+    }
+    """
+    from django.db.models import Avg, Count
+    from .models import AttentionRecord, FeatureRecord, StudentCourse, ClassSession
+    from datetime import timedelta
+
+    # Optional filters from query params
+    period = request.GET.get('period', 'month')
+    subject = request.GET.get('subject')
+
+    records = AttentionRecord.objects.filter(student=request.user)
+
+    # apply period filter
+    days = 30
+    if period == 'week':
+        days = 7
+    elif period == 'semester':
+        days = 120
+    cutoff = timezone.now() - timedelta(days=days)
+    records = records.filter(timestamp__gte=cutoff)
+
+    # apply subject filter if provided (accept course id or code)
+    if subject:
+        try:
+            # if numeric, treat as course id
+            course_id = int(subject)
+            records = records.filter(class_session__course__id=course_id)
+        except Exception:
+            records = records.filter(class_session__course__code__icontains=subject)
+
+    # Summary
+    avg_att = int(records.aggregate(a=Avg('attention_score'))['a'] or 0)
+    total_sessions = records.count()
+    total_minutes = int(sum(r.duration_seconds for r in records) / 60)
+
+    # Timeline (last 50)
+    timeline_qs = records.order_by('-timestamp')[:50]
+    timeline = [
+        { 'timestamp': r.timestamp.isoformat(), 'attention': r.attention_score }
+        for r in reversed(timeline_qs)
+    ]
+
+    # Attention by hour (DB-agnostic using ExtractHour)
+    from django.db.models.functions import ExtractHour
+    by_hour_qs = records.annotate(hour=ExtractHour('timestamp')).values('hour').annotate(att=Avg('attention_score')).order_by('hour')
+    by_hour = [{ 'hour': int(item['hour'] or 0), 'attention': int(item['att'] or 0) } for item in by_hour_qs]
+
+    # Class comparison: for each enrolled course compute student avg and class avg
+    class_comp = []
+    enrolled = StudentCourse.objects.filter(student=request.user)
+    for sc in enrolled:
+        course = sc.course
+        # student avg for this course
+        student_avg = records.filter(class_session__course=course).aggregate(a=Avg('attention_score'))['a'] or 0
+        # class avg across students
+        class_avg = AttentionRecord.objects.filter(class_session__course=course).aggregate(a=Avg('attention_score'))['a'] or 0
+        class_comp.append({ 'course': course.code, 'course_name': course.name, 'student_avg': int(student_avg), 'class_avg': int(class_avg) })
+
+    # Pomodoro metrics (reuse existing logic)
+    from .models import PomodoroEvent
+    total_events = PomodoroEvent.objects.filter(student=request.user).count()
+    auto_pauses = PomodoroEvent.objects.filter(student=request.user, event_type='auto_pause').count()
+    pomodoro_metrics_data = { 'total_events': total_events, 'auto_pauses': auto_pauses, 'effective_minutes': total_minutes }
+
+    return Response({
+        'summary': { 'average_attention': avg_att, 'total_sessions': total_sessions, 'total_minutes': total_minutes, 'period': period },
+        'timeline': timeline,
+        'by_hour': by_hour,
+        'class_comparison': class_comp,
+        'pomodoro_metrics': pomodoro_metrics_data
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def admin_users(request):
     """Get all users in the system (admin only)."""
     if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':

@@ -129,16 +129,16 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const loadCourses = async () => {
     // Avoid calling API when there's no token to prevent noisy 401 runtime errors
     try {
-      const token = localStorage.getItem('authToken') || (typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_DEV_TOKEN : null);
+      const token = localStorage.getItem('authToken');
       if (!token) {
-        toast.warning('No token presente. Usa el botón "Auth Dev Token" o inicia sesión.');
+        toast.warning('No token presente. Inicia sesión o pega un token en la opción correspondiente.');
         throw new Error('No auth token');
       }
       const response = await api.get('/student/courses/');
       setCourses(response.data);
     } catch (error) {
       console.error('Error loading courses:', error);
-      toast.error('No autenticado o error al cargar cursos. Inicia sesión o inyecta token de desarrollo.');
+      toast.error('No autenticado o error al cargar cursos. Inicia sesión o pega un token.');
       setCourses([]);
     }
   };
@@ -148,15 +148,8 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   };
 
   useEffect(() => {
-    // Auto-inject dev token from env when available for convenience
-    try {
-      const envToken = process.env.NEXT_PUBLIC_DEV_TOKEN;
-      if (envToken && !localStorage.getItem('authToken')) {
-        localStorage.setItem('authToken', envToken);
-      }
-    } catch (e) {}
-    // Load user and courses if a token exists
-    const token = localStorage.getItem('authToken') || (typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_DEV_TOKEN : null);
+    // Load user and courses if an auth token exists in localStorage
+    const token = localStorage.getItem('authToken');
     if (token) {
       loadUser();
       loadCourses();
@@ -511,12 +504,11 @@ const toggleCamera = async () => {
                       <Alert className="border-cyan-300 bg-cyan-50">
                         <AlertCircle className="h-4 w-4 text-cyan-600" />
                         <AlertDescription className="text-cyan-700">
-                          No se encontraron cursos. Inicia sesión o carga el token de desarrollo para ver tus cursos.
+                          No se encontraron cursos. Inicia sesión para ver tus cursos.
                         </AlertDescription>
                       </Alert>
                       <div className="mt-4 flex gap-2">
                         <Button onClick={() => setCurrentView('profile')}>Iniciar Sesión / Perfil</Button>
-                        <Button onClick={async () => { const envToken = process.env.NEXT_PUBLIC_DEV_TOKEN; if (envToken) { localStorage.setItem('authToken', envToken); toast.success('Token de desarrollo cargado'); await loadUser(); await loadCourses(); await loadPomodoroMetrics(); } else { const t = prompt('Pega aquí el token de API (modo dev)'); if (t) { localStorage.setItem('authToken', t); toast.success('Token guardado'); await loadUser(); await loadCourses(); await loadPomodoroMetrics(); } } }} variant="outline">Auth Dev Token</Button>
                       </div>
                     </div>
                   ) : (
@@ -767,24 +759,7 @@ const toggleCamera = async () => {
                           )}
                         </Button>
 
-                        <Button
-                          onClick={async () => {
-                            const envToken = process.env.NEXT_PUBLIC_DEV_TOKEN;
-                            if (envToken) {
-                              localStorage.setItem('authToken', envToken);
-                              toast.success('Token de desarrollo cargado en localStorage');
-                            } else {
-                              const t = prompt('Pega aquí el token de API (modo dev)');
-                              if (t) { localStorage.setItem('authToken', t); toast.success('Token guardado'); }
-                            }
-                            // Re-fetch user, courses and metrics now that token might be set
-                            try { await loadUser(); await loadCourses(); await loadPomodoroMetrics(); toast.success('Cursos recargados'); } catch (e) { }
-                          }}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          <span className="mr-2">Auth</span>Dev Token
-                        </Button>
+
 
                         <Button
                           onClick={isAnalyzing ? stopAnalysis : startAnalysis}
