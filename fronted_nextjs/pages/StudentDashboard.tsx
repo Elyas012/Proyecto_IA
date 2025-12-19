@@ -32,7 +32,6 @@ import WebcamCapture from "../components/WebcamCapture";
 import { Toaster, toast } from 'sonner';
 import { motion } from "framer-motion";
 
-
 type ViewType = "dashboard" | "classes" | "stats" | "profile" | "report";
 type AttentionLevel = "high" | "medium" | "low";
 type PomodoroPhase = "trabajo" | "descanso-corto" | "descanso-largo";
@@ -83,6 +82,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   useEffect(() => {
     isFeaturesExtractedRef.current = isFeaturesExtracted;
   }, [isFeaturesExtracted]);
+
   const [attentionLevel, setAttentionLevel] = useState<AttentionLevel>("high");
   const [attentionScore, setAttentionScore] = useState(85);
   const [showLowAttentionAlert, setShowLowAttentionAlert] = useState(false);
@@ -143,6 +143,10 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     }
   };
 
+  const handleFeaturesExtracted = (ready: boolean) => {
+    setIsFeaturesExtracted(ready);
+  };
+
   useEffect(() => {
     // Auto-inject dev token from env when available for convenience
     try {
@@ -159,8 +163,6 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
       loadPomodoroMetrics();
     }
   }, []);
-
-
 
   // Record actual attention value to history every 2s while analyzing
   useEffect(() => {
@@ -225,15 +227,22 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   // Activar/desactivar cámara
   const toggleCamera = async () => {
     if (isCameraActive) {
+<<<<<<< HEAD
       // Desactivar cámara
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
+=======
+      // Apagar cámara
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+>>>>>>> 19e6489 (v1.3.7: Atención con MediaPipe Tasks)
         streamRef.current = null;
       }
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
       setIsCameraActive(false);
+<<<<<<< HEAD
       setIsAnalyzing(false);
       setIsFeaturesExtracted(false);
       setExtractionProgress(0);
@@ -253,6 +262,28 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
         console.error('No se pudo acceder a la cámara real', error);
         alert('No se pudo acceder a la cámara. Verifica permisos y conecta la cámara.');
       }
+=======
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        // Punto clave: asignar el stream al video
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        videoRef.current.srcObject = stream as any;
+      }
+
+      setIsCameraActive(true);
+    } catch (err) {
+      console.error("Error activando cámara:", err);
+      toast.error("No se pudo activar la cámara");
+>>>>>>> 19e6489 (v1.3.7: Atención con MediaPipe Tasks)
     }
   };
 
@@ -652,24 +683,28 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
                           </motion.div>
                         )}
                         
+                        <video
+                          ref={videoRef}
+                          className="block w-full h-full object-cover"
+                          autoPlay
+                          muted
+                          playsInline
+                        />
                         {isCameraActive && (
                           <WebcamCapture
                             videoRef={videoRef}
                             isAnalyzing={isAnalyzing}
                             isCameraActive={isCameraActive}
-                            onFeaturesExtracted={setIsFeaturesExtracted}
+                            onFeaturesExtracted={handleFeaturesExtracted}
                             onAttentionUpdate={handleAttentionUpdate}
+<<<<<<< HEAD
                             classSessionId={selectedCourse?.id}
                             modelUrl={'/models/attention_model/model.json'}
+=======
+                            classSessionId={selectedCourse?.id ?? null}
+>>>>>>> 19e6489 (v1.3.7: Atención con MediaPipe Tasks)
                           />
                         )}
-                        <video
-                          ref={videoRef}
-                          autoPlay
-                          playsInline
-                          muted
-                          className="w-full h-full object-cover"
-                        />
                         {!isCameraActive && (
                           <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
                             <div className="text-center text-white">
