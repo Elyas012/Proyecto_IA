@@ -11,7 +11,6 @@ class Message(models.Model):
     def __str__(self):
         return self.text
 
-
 class Course(models.Model):
     """Curso o materia impartida"""
     name = models.CharField(max_length=255)
@@ -21,7 +20,6 @@ class Course(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
-
 
 class ClassSession(models.Model):
     """Sesión de clase (una clase impartida en una fecha/hora específica)"""
@@ -42,7 +40,6 @@ class ClassSession(models.Model):
     def __str__(self):
         return f"{self.course.code} - {self.date} {self.time}"
 
-
 class StudentCourse(models.Model):
     """Relación entre estudiante y curso (inscripción)"""
     student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='enrolled_courses')
@@ -55,7 +52,6 @@ class StudentCourse(models.Model):
     def __str__(self):
         return f"{self.student.username} - {self.course.code}"
 
-
 class AttentionRecord(models.Model):
     """Registro de atención de un estudiante en una clase"""
     ATTENTION_LEVEL_CHOICES = [('high', 'Alta'), ('medium', 'Media'), ('low', 'Baja')]
@@ -66,13 +62,15 @@ class AttentionRecord(models.Model):
     attention_level = models.CharField(max_length=20, choices=ATTENTION_LEVEL_CHOICES, default='medium')
     timestamp = models.DateTimeField(auto_now_add=True)
     duration_seconds = models.IntegerField(default=0)  # Duración de la clase en segundos
+    
+    # 🆕 NUEVO: Para guardar features del modelo LSTM
+    raw_features = models.JSONField(null=True, blank=True)  # [[ear,mar], ...]
 
     class Meta:
         ordering = ['-timestamp']
 
     def __str__(self):
         return f"{self.student.username} - {self.class_session.course.code} - {self.attention_score}%"
-
 
 class FeatureRecord(models.Model):
     """Store computed facial feature vectors for training/analysis (privacy: no images)."""
@@ -86,7 +84,6 @@ class FeatureRecord(models.Model):
 
     def __str__(self):
         return f"{self.timestamp} - {self.student.username} - features"
-
 
 class UserProfile(models.Model):
     """Perfil extendido del usuario"""
@@ -104,7 +101,6 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} ({self.role})"
-
 
 class PomodoroEvent(models.Model):
     EVENT_TYPES = [
@@ -124,7 +120,6 @@ class PomodoroEvent(models.Model):
 
     def __str__(self):
         return f"{self.timestamp} - {self.student.username} - {self.event_type}"
-
 
 class PomodoroSession(models.Model):
     """
@@ -197,7 +192,6 @@ class PomodoroSession(models.Model):
             return True # Simplified for now, as time_remaining_in_current_phase will handle exact timing
         return False
 
-
 class CourseMaterial(models.Model):
     """Material de un curso (PDF, video, etc.)"""
     FILE_TYPE_CHOICES = [('pdf', 'PDF'), ('video', 'Video'), ('other', 'Otro')]
@@ -212,5 +206,3 @@ class CourseMaterial(models.Model):
 
     def __str__(self):
         return f"{self.course.code} - {self.title}"
-
-

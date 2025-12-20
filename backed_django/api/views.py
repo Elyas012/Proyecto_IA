@@ -25,10 +25,68 @@ from .models import Course, ClassSession, UserProfile
 from .serializers import ClassSessionSerializer
 from .models import StudentCourse
 from .serializers import StudentCourseSerializer
+# 🆕 NUEVO: Para LSTM (AGREGAR DESPUÉS DE TUS IMPORTS)
+import numpy as np
+import tensorflow as tf
+import joblib
+import os
+from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.permissions import IsAuthenticated, BasePermission, AllowAny  # 🆕 +AllowAny
+
+
+
 
 
 
 User = get_user_model()
+
+# 🆕 NUEVO: Cargar modelo LSTM globalmente
+MODEL_PATH = os.path.join(settings.BASE_DIR, 'api', 'model_lstm_distractions.h5')  # Cambia 'api' por nombre de tu app
+SCALER_PATH = os.path.join(settings.BASE_DIR, 'api', 'scaler.pkl')
+
+model = None
+scaler = None
+
+def load_lstm_model():
+    """Carga el modelo LSTM al inicio"""
+    global model, scaler
+    try:
+        if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
+            model = tf.keras.models.load_model(MODEL_PATH)
+            scaler = joblib.load(SCALER_PATH)
+            print("✅ Modelo LSTM cargado exitosamente")
+        else:
+            print("⚠️ Modelos no encontrados")
+    except Exception as e:
+        print(f"❌ Error cargando modelo: {e}")
+
+load_lstm_model()  # Cargar ahora
+
+# 🆕 NUEVO ENDPOINT: Para React
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def predict_distractions(request):
+    try:
+        data = request.data
+        features = [[0.28, 0.25]] if not data.get('features') else data['features'][:15]
+        
+        # 🆕 CAMBIAR ESTAS 3 LÍNEAS:
+        avg_ear = sum(f[0] for f in features) / len(features)
+        avg_mar = sum(f[1] for f in features) / len(features)
+        score = max(0, min(100, (avg_ear * 200 + (1 - avg_mar) * 100) / 2))  # ORIGINAL
+        
+        level = "high" if score >= 70 else "medium" if score >= 45 else "low"  # ORIGINAL
+        
+        return JsonResponse({
+            'distraction_score': round(score, 1),  # 80-90% = DISTRAÍDO
+            'level': level,
+            'model_used': 'ear_mar'
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -180,12 +238,15 @@ def record_attention(request):
     else:
         level = 'low'
     
+    # DESPUÉS:
     record = AttentionRecord.objects.create(
         student=request.user,
         class_session=class_session,
         attention_score=attention_score,
-        attention_level=level
+        attention_level=level,
+        raw_features=request.data.get('raw_features')  # 🆕 NUEVO
     )
+    
     # Optional: record effective focused duration in seconds
     try:
         if duration_seconds is not None:

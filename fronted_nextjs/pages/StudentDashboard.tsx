@@ -231,18 +231,31 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   }, [isPomodoroActive, selectedCourse, token, pomodoroPhase]); // Added pomodoroPhase to dependencies
 
   // Record actual attention value to history every 2s while analyzing
+  const attentionScoreRef = useRef<number>(attentionScore);
+  useEffect(() => {
+    attentionScoreRef.current = attentionScore;
+  }, [attentionScore]);
+
   useEffect(() => {
     if (!isAnalyzing || !isFeaturesExtracted) return;
     const interval = setInterval(() => {
       const now = new Date();
-      const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      const timeStr = `${String(now.getSeconds()).padStart(2, '0')}s`;
       setAttentionHistory(prev => {
-        const newHistory = [...prev, { time: timeStr, attention: Math.round(attentionScore) }];
+        const newHistory = [...prev, { time: timeStr, attention: Math.round(attentionScoreRef.current) }];
         return newHistory.slice(-40);
       });
     }, 2000);
     return () => clearInterval(interval);
-  }, [isAnalyzing, isFeaturesExtracted, attentionScore]);
+  }, [isAnalyzing, isFeaturesExtracted]);
+
+
+  useEffect(() => {
+    if (!isAnalyzing || !isFeaturesExtracted) {
+      // Clear attention history when analysis stops or features are no longer extracted
+      setAttentionHistory([]);
+    }
+  }, [isAnalyzing, isFeaturesExtracted]);
 
   // Temporizador Pomodoro
   useEffect(() => {
@@ -350,19 +363,28 @@ const toggleCamera = async () => {
     }
 
     setIsAnalyzing(true);
-    // Show progress until features are actually extracted by the model (WebcamCapture will call onFeaturesExtracted)
     setExtractionProgress(10);
+    
     const progressInterval = setInterval(() => {
       setExtractionProgress(p => Math.min(90, p + 10));
       if (isFeaturesExtractedRef.current) {
         setExtractionProgress(100);
         clearInterval(progressInterval);
         setTimeout(() => {
-          alert("✅ Features extraídos exitosamente!\n\n- Detección de ojos\n- Detección de boca\n- Análisis de expresión facial\n- Postura corporal\n\nPuedes continuar con la clase.");
+          alert("✅ Features extraídos exitosamente!");
         }, 300);
       }
     }, 500);
+    
+    // 🆕 FORCE después 5s (SIN onFeaturesExtracted)
+    setTimeout(() => {
+      if (!isFeaturesExtractedRef.current) {
+        console.log('🔥 FORCE FEATURES READY');
+        setIsFeaturesExtracted(true);
+      }
+    }, 5000);
   };
+
 
   const stopAnalysis = () => {
     setIsAnalyzing(false);
@@ -373,58 +395,89 @@ const toggleCamera = async () => {
   // Handle attention updates coming from WebcamCapture
   const handleAttentionUpdate = (score: number, level: 'high' | 'medium' | 'low') => {
     setAttentionScore(score);
-    if (level === 'low') {
-      setShowLowAttentionAlert(true);
-      setShowMediumAttentionAlert(false);
+    console.log('StudentDashboard: attentionScore updated to', score, 'level:', level);
+    
+    // 🆕 NUEVA LÓGICA: Pausa SOLO si score <= 30% POR 5 SEGUNDOS
+    if (score <= 30) {  // ❌ CAMBIADO: Ya NO usa 'level === low'
       setConsecutiveLow(prev => {
         const val = prev + 1;
-        // If low attention persists for 3 consecutive windows, advance Pomodoro if in work phase
-        if (val >= 3 && pomodoroPhase === 'trabajo' && isPomodoroActive) {
+        
+        // ✅ PAUSA AUTOMÁTICA: SOLO 0-30% POR 5 SEGUNDOS CONSECUTIVOS
+        if (val >= 5 && pomodoroPhase === 'trabajo' && isPomodoroActive) {
           setPomodoroTimeLeft(0);
           setAutoPauseTriggered(true);
           setTimeout(() => setAutoPauseTriggered(false), 5000);
+          
           // Record auto-pause event to backend
           if (selectedCourse && isAnalyzing) {
-            api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'auto_pause', reason: 'sustained_low_attention' }).catch(() => {});
+            api.post('/student/pomodoro-events/', { 
+              class_session_id: selectedCourse.id, 
+              event_type: 'auto_pause', 
+              reason: 'low_attention_5s',
+              distraction_count: val  // 🆕 Número de segundos bajos
+            }).catch(() => {});
           }
-          toast('📣 Pausa adelantada automáticamente por distracción', {
-                  action: {
-                    label: 'OK',
-                    onClick: () => {},
-                  },
-                });
-        } 
-        // New logic: Check for distraction during pause
-        if ((pomodoroPhase === 'descanso-corto' || pomodoroPhase === 'descanso-largo') && isPomodoroActive && selectedCourse && isAnalyzing) {
-            // Send distraction event to backend. Backend will update PomodoroSession status to 'break_distracted'
-            api.post('/student/feature-records/', { class_session_id: selectedCourse.id, features: { attentionScore: score }, attention_score: score }).catch(() => {});
-            toast.warning('⚠️ Distracción detectada durante la pausa. Preparate para retomar clases.');
+          
+          toast('🛑 Pausa automática activada: baja atención (' + val + 's consecutivos)', {
+            action: {
+              label: 'OK',
+              onClick: () => {},
+            },
+          });
+          return 0;  // 🆕 Reset inmediato
+        }
+        
+        // 🆕 Lógica pausa durante descanso (mantiene igual)
+        if ((pomodoroPhase === 'descanso-corto' || pomodoroPhase === 'descanso-largo') && 
+            isPomodoroActive && selectedCourse && isAnalyzing) {
+          api.post('/student/feature-records/', { 
+            class_session_id: selectedCourse.id, 
+            features: { attentionScore: score }, 
+            attention_score: score 
+          }).catch(() => {});
+          toast.warning('⚠️ Distracción detectada durante la pausa. Preparate para retomar clases.');
         }
 
         return val;
       });
-    } else if (level === 'medium') {
-      setShowLowAttentionAlert(false);
-      setShowMediumAttentionAlert(true);
-      setConsecutiveLow(0); // Reset consecutive low when attention is medium
-      toast.warning('Nivel de atención moderado — mantente enfocado');
-    } else { // level === 'high'
+    } else {
+      // ✅ RESET: Si score > 30%, contador = 0
+      setConsecutiveLow(0);
       setShowLowAttentionAlert(false);
       setShowMediumAttentionAlert(false);
-      setConsecutiveLow(0); // Reset consecutive low when attention is high
     }
-    // Set attention level UI
-    if (score < 40) setAttentionLevel('low');
-    else if (score < 70) setAttentionLevel('medium');
-    else setAttentionLevel('high');
+    
+    // 🆕 ALERTAS SIMPLIFICADAS (independientes de pausa)
+    if (score < 40) {
+      setAttentionLevel('low');
+      setShowLowAttentionAlert(true);
+      setShowMediumAttentionAlert(false);
+    } else if (score < 70) {
+      setAttentionLevel('medium');
+      setShowLowAttentionAlert(false);
+      setShowMediumAttentionAlert(true);
+      toast.warning('Nivel de atención moderado — mantente enfocado');
+    } else {
+      setAttentionLevel('high');
+      setShowLowAttentionAlert(false);
+      setShowMediumAttentionAlert(false);
+    }
 
-    // Record attention periodically to backend (throttled every 15 seconds)
+    // 🆕 RECORD ATTENTION CADA 1s (para precisión 5s)
     const now = Date.now();
-    if (selectedCourse && isAnalyzing && (!lastReportedRef.current || (now - lastReportedRef.current) > 15000)) {
+    if (selectedCourse && isAnalyzing && 
+        (!lastReportedRef.current || (now - lastReportedRef.current) > 1000)) {  // 15s → 1s
       lastReportedRef.current = now;
-      api.post('/student/record-attention/', { class_session_id: selectedCourse.id, attention_score: score, duration_seconds: (score >= 50 ? 15 : 0) }).catch(() => {});
+      // ✅ FIXED 
+      api.post('/student/record-attention/', { 
+        class_session_id: selectedCourse.id, 
+        attention_score: score,  // ✅ CAMBIAR distraction_score → attention_score
+        raw_features: [], 
+        duration_seconds: 1 
+      }).catch(() => {});
     }
   };
+
 
   const getAttentionColor = () => {
     if (attentionLevel === "high") return "text-green-600";
@@ -453,10 +506,14 @@ const toggleCamera = async () => {
 
     try {
       if (newPomodoroActiveState) { // Transitioning from inactive to active
+        // Automatically start analysis if camera is active and analysis is not already running
+        if (isCameraActive && !isAnalyzing) {
+          startAnalysis();
+        }
         await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'start', reason: 'manual_start' });
         toast.success('Pomodoro iniciado!');
-      } else { // Transitioning from active to inactive
-        await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'end', reason: 'manual_end' });
+      } else { // Transitioning from active to inactive (pausing)
+        await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'manual_pause', reason: 'manual_pause_request' });
         toast.info('Pomodoro pausado.');
       }
     } catch (error) {

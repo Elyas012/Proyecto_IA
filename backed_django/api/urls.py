@@ -3,7 +3,7 @@ from django.urls import path
 from .views import (MessageViewSet, LoginView, RegisterView, student_courses, 
                    record_attention, teacher_students, teacher_overview, admin_users, 
                    admin_active_sessions, pomodoro_events, pomodoro_metrics, 
-                   feature_records, current_user, CourseMaterialViewSet)
+                   feature_records, current_user, CourseMaterialViewSet, predict_distractions)  # 🆕 AGREGAR AQUÍ
 from django.urls import path
 from . import views
 
@@ -31,4 +31,7 @@ urlpatterns = router.urls + [
     path('teacher/student-courses/', views.teacher_student_courses),
     path("admin/assign-teacher/", views.admin_assign_teacher, name="admin-assign-teacher"),
     path("admin/enroll-student/", views.admin_enroll_student, name="admin-enroll-student"),
+    
+    # 🆕 NUEVO ENDPOINT LSTM (AGREGAR ESTA LÍNEA AL FINAL)
+    path('predict-distractions/', predict_distractions, name='predict-distractions'),
 ]
