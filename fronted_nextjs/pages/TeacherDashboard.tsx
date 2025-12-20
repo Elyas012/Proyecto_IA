@@ -7,6 +7,8 @@ import { Separator } from "../components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
+import CourseMaterialUpload from "../components/CourseMaterialUpload";
+import CourseMaterials from "../components/CourseMaterials";
 import { 
   LayoutDashboard, 
   Users, 
@@ -19,11 +21,12 @@ import {
   BookOpen,
   Eye,
   Filter,
-  Search
+  Search,
+  Upload
 } from "lucide-react";
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from "recharts";
 
-type ViewType = "dashboard" | "students" | "stats" | "profile";
+type ViewType = "dashboard" | "students" | "stats" | "profile" | "materials";
 
 interface Student {
   id: string;
@@ -53,6 +56,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
+  const [token, setToken] = useState<string | null>(null);
+  const [selectedCourseForMaterials, setSelectedCourseForMaterials] = useState<number | null>(null);
+  const [materialChangeCounter, setMaterialChangeCounter] = useState(0); // Added for re-rendering materials
 
   const [teacherProfile, setTeacherProfile] = useState<{
     id?: number;
@@ -70,6 +76,8 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   useEffect(() => {
     const loadData = async () => {
       try {
+        const token = localStorage.getItem('authToken');
+        setToken(token);
         // Perfil autoritativo desde el backend (MySQL)
         const meResp = await api.get('/auth/me/');
         setTeacherProfile(meResp.data);
@@ -218,6 +226,18 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
             >
               <BarChart3 className="w-5 h-5" />
               <span>Estadísticas</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentView("materials")}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                currentView === "materials"
+                  ? "bg-blue-500 text-white"
+                  : "text-gray-300 hover:bg-gray-800"
+              }`}
+            >
+              <Upload className="w-5 h-5" />
+              <span>Materiales</span>
             </button>
 
             <button
@@ -591,6 +611,60 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   </CardContent>
                 </Card>
               </div>
+            </div>
+          )}
+
+          {/* Materials View */}
+          {currentView === "materials" && (
+            <div>
+              <div className="mb-8">
+                <h1 className="text-gray-900 mb-2">Gestión de Materiales</h1>
+                <p className="text-gray-600">Sube y gestiona los materiales para tus cursos</p>
+              </div>
+
+              <div className="flex items-center space-x-2 mb-8">
+                <BookOpen className="w-5 h-5 text-gray-500" />
+                <Select
+                  onValueChange={(value) => setSelectedCourseForMaterials(parseInt(value))}
+                >
+                  <SelectTrigger className="w-96 bg-white">
+                    <SelectValue placeholder="Selecciona un curso para gestionar sus materiales" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teacherCourses.map((course: any) => (
+                      <SelectItem key={course.id} value={String(course.id)}>
+                        {course.name} ({course.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedCourseForMaterials && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div>
+                    <CourseMaterialUpload
+                      courseId={selectedCourseForMaterials}
+                      token={token}
+                      onUploadSuccess={() => {
+                        // Force a re-render of CourseMaterials by changing the key or resetting state
+                        const current = selectedCourseForMaterials;
+                        setSelectedCourseForMaterials(null);
+                        setTimeout(() => setSelectedCourseForMaterials(current), 50);
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <CourseMaterials
+                      key={selectedCourseForMaterials ? `${selectedCourseForMaterials}-${materialChangeCounter}` : 'no-course'} // Re-mount when course changes or materials are modified
+                      courseId={selectedCourseForMaterials}
+                      token={token}
+                      isTeacherView={true} // Enable teacher view
+                      onMaterialChange={() => setMaterialChangeCounter(prev => prev + 1)} // Callback to trigger re-fetch
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

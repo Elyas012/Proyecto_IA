@@ -1,10 +1,10 @@
 // lib/api.ts
 import axios from "axios";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api";
+export const BASE_URL = "http://127.0.0.1:8000/api";
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -41,5 +41,10 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export const getCourseMaterials = async (courseId: string) => {
+  const response = await api.get(`/course-materials/by-course/${courseId}/`);
+  return response.data;
+};
 
 export default api;

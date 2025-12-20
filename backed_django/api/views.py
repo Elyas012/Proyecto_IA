@@ -2,13 +2,14 @@ from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import authenticate, get_user_model
 from django.utils import timezone
-from .models import Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile
+from .models import Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile, CourseMaterial
 from .serializers import (MessageSerializer, CourseSerializer, ClassSessionSerializer, 
-                         StudentCourseSerializer, UserSerializer, AttentionRecordSerializer, FeatureRecordSerializer)
+                         StudentCourseSerializer, UserSerializer, AttentionRecordSerializer, FeatureRecordSerializer,
+                         CourseMaterialSerializer)
 from .models import FeatureRecord
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -17,7 +18,7 @@ from .serializers import CourseSerializer, ClassSessionSerializer, StudentCourse
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework import status
 from django.contrib.auth.models import User
 from .models import Course, ClassSession, UserProfile
@@ -584,6 +585,48 @@ def admin_assign_teacher(request):
     )
 
     return Response(ClassSessionSerializer(session).data, status=status.HTTP_201_CREATED)
+
+class IsTeacher(BasePermission):
+    """
+    Permiso personalizado para permitir solo a los usuarios con rol 'docente'.
+    """
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated and hasattr(request.user, 'profile') and request.user.profile.role == 'teacher'
+
+class CourseMaterialViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestionar los materiales de un curso.
+    Los docentes pueden crear, actualizar y eliminar.
+    Los estudiantes solo pueden leer.
+    """
+    queryset = CourseMaterial.objects.all().order_by('-uploaded_at')
+    serializer_class = CourseMaterialSerializer
+
+    def get_permissions(self):
+        """
+        Permisos instanciados para una acción específica.
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            self.permission_classes = [IsAuthenticated, IsTeacher]
+        else: # list, retrieve, by_course
+            self.permission_classes = [IsAuthenticated]
+        return super().get_permissions()
+
+    @action(detail=False, methods=['get'], url_path='by-course/(?P<course_id>[^/.]+)')
+    def by_course(self, request, course_id=None):
+        """
+        Obtiene todos los materiales para un curso específico.
+        """
+        # El estudiante debe estar inscrito en el curso para ver los materiales
+        is_enrolled = StudentCourse.objects.filter(student=request.user, course_id=course_id).exists()
+        is_teacher = ClassSession.objects.filter(teacher=request.user, course_id=course_id).exists()
+
+        if not (is_enrolled or is_teacher or (hasattr(request.user, 'profile') and request.user.profile.role == 'admin')):
+            return Response({'detail': 'No está autorizado para ver los materiales de este curso.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        materials = self.get_queryset().filter(course_id=course_id)
+        serializer = self.get_serializer(materials, many=True)
+        return Response(serializer.data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

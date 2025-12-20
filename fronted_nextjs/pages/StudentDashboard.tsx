@@ -29,6 +29,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
 import { StudentReport } from "./StudentReport";
 import WebcamCapture from "../components/WebcamCapture";
+import CourseMaterials from "../components/CourseMaterials";
 import { Toaster, toast } from 'sonner';
 import { motion } from "framer-motion";
 
@@ -101,6 +102,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [pomodoroPhase, setPomodoroPhase] = useState<PomodoroPhase>("trabajo");
   const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
   const [isPomodoroActive, setIsPomodoroActive] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -150,6 +152,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   useEffect(() => {
     // Load user and courses if an auth token exists in localStorage
     const token = localStorage.getItem('authToken');
+    setToken(token);
     if (token) {
       loadUser();
       loadCourses();
@@ -843,6 +846,17 @@ const toggleCamera = async () => {
                           </ResponsiveContainer>
                         </CardContent>
                       </Card>
+                    </motion.div>
+                  )}
+
+                  {/* Course Materials */}
+                  {selectedCourse && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-6"
+                    >
+                      <CourseMaterials courseId={selectedCourse ? selectedCourse.id : null} />
                     </motion.div>
                   )}
                 </div>

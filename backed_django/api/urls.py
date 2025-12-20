@@ -1,12 +1,15 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path
 from .views import (MessageViewSet, LoginView, RegisterView, student_courses, 
-                   record_attention, teacher_students, teacher_overview, admin_users, admin_active_sessions, pomodoro_events, pomodoro_metrics, feature_records, current_user)
+                   record_attention, teacher_students, teacher_overview, admin_users, 
+                   admin_active_sessions, pomodoro_events, pomodoro_metrics, 
+                   feature_records, current_user, CourseMaterialViewSet)
 from django.urls import path
 from . import views
 
 router = DefaultRouter()
 router.register(r'messages', MessageViewSet, basename='message')
+router.register(r'course-materials', CourseMaterialViewSet, basename='coursematerial')
 
 urlpatterns = router.urls + [
     path('auth/login/', LoginView.as_view(), name='api-login'),

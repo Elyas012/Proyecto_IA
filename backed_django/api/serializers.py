@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile
+from .models import Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile, CourseMaterial
 from .models import FeatureRecord
 
 
@@ -70,3 +70,30 @@ class StudentCourseSerializer(serializers.ModelSerializer):
         model = StudentCourse
         fields = ['id', 'student', 'course', 'enrolled_at']
 
+
+class CourseMaterialSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseMaterial
+        fields = ['id', 'course', 'title', 'description', 'file', 'file_type', 'is_active', 'uploaded_at']
+
+    def create(self, validated_data):
+        file = validated_data.get('file')
+        if file:
+            file_name = file.name.lower()
+            if file_name.endswith('.pdf'):
+                validated_data['file_type'] = 'pdf'
+            elif file_name.endswith(('.mp4', '.mov', '.avi', '.wmv')): # Added .wmv
+                validated_data['file_type'] = 'video'
+            else:
+                validated_data['file_type'] = 'other' # Ensure other types are explicitly set
+        return super().create(validated_data)
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Rename 'file_type' to 'material_type' for frontend compatibility
+        if 'file_type' in representation:
+            representation['material_type'] = representation.pop('file_type')
+        
+        if instance.file and hasattr(instance.file, 'url'):
+            representation['file'] = instance.file.url
+        return representation
