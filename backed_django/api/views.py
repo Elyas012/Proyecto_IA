@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import authenticate, get_user_model
 from django.utils import timezone
-from .models import Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile, CourseMaterial
+from .models import Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile, CourseMaterial, PomodoroSession, PomodoroEvent
 from .serializers import (MessageSerializer, CourseSerializer, ClassSessionSerializer, 
                          StudentCourseSerializer, UserSerializer, AttentionRecordSerializer, FeatureRecordSerializer,
                          CourseMaterialSerializer)
@@ -204,13 +204,26 @@ def feature_records(request):
     if request.method == 'POST':
         class_session_id = request.data.get('class_session_id')
         features = request.data.get('features')
+        attention_score = request.data.get('attention_score') # Assuming frontend sends this
+        
         if not class_session_id or features is None:
             return Response({'detail': 'class_session_id and features required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             cs = ClassSession.objects.get(id=class_session_id)
         except ClassSession.DoesNotExist:
             return Response({'detail': 'Class session not found'}, status=status.HTTP_404_NOT_FOUND)
+        
         fr = FeatureRecord.objects.create(student=request.user, class_session=cs, features=features)
+
+        # Update PomodoroSession based on distraction during pause
+        pomodoro_session, created = PomodoroSession.objects.get_or_create(
+            student=request.user,
+            class_session=cs,
+            defaults={'status': 'idle', 'current_cycle_start_time': None} # Initialize if new
+        )
+
+
+
         return Response(FeatureRecordSerializer(fr).data, status=status.HTTP_201_CREATED)
 
     # GET recent features
@@ -305,18 +318,78 @@ def pomodoro_events(request):
             cs = ClassSession.objects.get(id=class_session_id)
         except ClassSession.DoesNotExist:
             return Response({'detail': 'Class session not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Record the PomodoroEvent
         ev = __import__('api.models', fromlist=['PomodoroEvent']).PomodoroEvent.objects.create(
             student=request.user,
             class_session=cs,
             event_type=event_type,
             reason=reason
         )
+
+        # Update PomodoroSession state
+        pomodoro_session, created = PomodoroSession.objects.get_or_create(
+            student=request.user,
+            class_session=cs,
+            defaults={'status': 'idle'} # Initialize if new, status will be updated next
+        )
+
+        if event_type == 'start':
+            pomodoro_session.status = 'working'
+            if pomodoro_session.work_elapsed_time_on_pause:
+                pomodoro_session.current_cycle_start_time = timezone.now() - pomodoro_session.work_elapsed_time_on_pause
+                pomodoro_session.work_elapsed_time_on_pause = None
+            else:
+                pomodoro_session.current_cycle_start_time = timezone.now()
+        elif event_type == 'auto_pause' or event_type == 'manual_pause':
+            if pomodoro_session.status == 'working' and pomodoro_session.current_cycle_start_time:
+                elapsed_work_time = timezone.now() - pomodoro_session.current_cycle_start_time
+                pomodoro_session.work_elapsed_time_on_pause = elapsed_work_time
+                pomodoro_session.current_cycle_number += 1
+
+            pomodoro_session.status = 'paused'
+            pomodoro_session.current_cycle_start_time = timezone.now()
+            pomodoro_session.last_distraction_time = None # Reset distraction on new pause
+        elif event_type == 'end':
+            pomodoro_session.status = 'idle'
+            pomodoro_session.current_cycle_start_time = None
+            pomodoro_session.work_elapsed_time_on_pause = None
+        
+        pomodoro_session.save()
+
         return Response({'id': ev.id, 'event_type': ev.event_type, 'timestamp': ev.timestamp}, status=status.HTTP_201_CREATED)
 
     # GET: return recent events for student
     events = __import__('api.models', fromlist=['PomodoroEvent']).PomodoroEvent.objects.filter(student=request.user).order_by('-timestamp')[:50]
     serializer = __import__('api.serializers', fromlist=['PomodoroEventSerializer']).PomodoroEventSerializer(events, many=True)
     return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def pomodoro_status(request):
+    """Return the current pomodoro session status for the authenticated student."""
+    class_session_id = request.query_params.get('class_session_id')
+    if not class_session_id:
+        return Response({'detail': 'class_session_id required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        cs = ClassSession.objects.get(id=class_session_id)
+    except ClassSession.DoesNotExist:
+        return Response({'detail': 'Class session not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    pomodoro_session, created = PomodoroSession.objects.get_or_create(
+        student=request.user,
+        class_session=cs,
+        defaults={'status': 'idle', 'current_cycle_start_time': None} # Initialize if new
+    )
+
+    return Response({
+        'status': pomodoro_session.status,
+        'time_remaining_in_current_phase': pomodoro_session.time_remaining_in_current_phase,
+        'is_distracted_during_pause': pomodoro_session.is_distracted_during_pause,
+        'work_duration_minutes': pomodoro_session.work_duration_minutes,
+        'pause_duration_minutes': pomodoro_session.pause_duration_minutes,
+    })
 
 
 @api_view(['GET'])

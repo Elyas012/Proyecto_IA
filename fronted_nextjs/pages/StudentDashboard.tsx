@@ -70,6 +70,14 @@ interface StudentDashboardProps {
   onLogout?: () => void;
 }
 
+interface PomodoroBackendStatus {
+  status: 'idle' | 'working' | 'paused' | 'break_distracted';
+  time_remaining_in_current_phase: number; // in seconds
+  is_distracted_during_pause: boolean;
+  work_duration_minutes: number;
+  pause_duration_minutes: number;
+}
+
 export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [currentView, setCurrentView] = useState<ViewType>("classes");
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -103,6 +111,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
   const [isPomodoroActive, setIsPomodoroActive] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [backendPomodoroStatus, setBackendPomodoroStatus] = useState<PomodoroBackendStatus | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -160,6 +169,67 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     }
   }, []);
 
+  // Effect to poll backend for pomodoro status
+  useEffect(() => {
+    let interval: NodeJS.Timeout | undefined;
+
+    const fetchPomodoroStatus = async () => {
+      if (!isPomodoroActive || !selectedCourse || !token) {
+        return;
+      }
+
+      try {
+        const response = await api.get(`/student/pomodoro-status/?class_session_id=${selectedCourse.id}`);
+        const data: PomodoroBackendStatus = response.data;
+        setBackendPomodoroStatus(data);
+
+        // Synchronize frontend state with backend
+        if (data.status === 'working') {
+          if (pomodoroPhase !== 'trabajo') setPomodoroPhase('trabajo');
+          setPomodoroTimeLeft(data.time_remaining_in_current_phase);
+        } else if (data.status === 'paused' || data.status === 'break_distracted') {
+          if (pomodoroPhase === 'trabajo') { // Just transitioned from work to pause
+            if (pomodoroSession % 4 === 0) {
+              setPomodoroPhase('descanso-largo');
+            } else {
+              setPomodoroPhase('descanso-corto');
+            }
+          }
+          // If backend reports distraction and local is in pause, reset/extend the pause
+          if (data.is_distracted_during_pause && (pomodoroPhase === 'descanso-corto' || pomodoroPhase === 'descanso-largo')) {
+            toast.error('🛑 Distracción detectada durante el descanso. La pausa se ha reiniciado.');
+            setPomodoroTimeLeft(data.pause_duration_minutes * 60); // Reset pause timer
+          }
+          // Always sync time, even if it's a regular pause
+          else {
+              setPomodoroTimeLeft(data.time_remaining_in_current_phase);
+          }
+        } else if (data.status === 'idle') {
+            // If backend is idle, stop local pomodoro
+            setIsPomodoroActive(false);
+            setPomodoroTimeLeft(0);
+            setPomodoroPhase('trabajo'); // Reset for next session
+        }
+
+      } catch (error) {
+        console.error('Error fetching pomodoro status:', error);
+      }
+    };
+
+    if (isPomodoroActive && selectedCourse && token) {
+      // Fetch immediately and then set up interval
+      fetchPomodoroStatus(); 
+      interval = setInterval(fetchPomodoroStatus, 5000); // Poll every 5 seconds
+    } else {
+      // Clear interval if pomodoro is not active or no course/token
+      if (interval) clearInterval(interval);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPomodoroActive, selectedCourse, token, pomodoroPhase]); // Added pomodoroPhase to dependencies
+
   // Record actual attention value to history every 2s while analyzing
   useEffect(() => {
     if (!isAnalyzing || !isFeaturesExtracted) return;
@@ -176,35 +246,46 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
 
   // Temporizador Pomodoro
   useEffect(() => {
-    if (!isPomodoroActive || !isFeaturesExtracted) return;
+    if (!isPomodoroActive || !isFeaturesExtracted || !selectedCourse || !backendPomodoroStatus) return;
     const interval = setInterval(() => {
       setPomodoroTimeLeft(prev => {
-        // Only decrement when attention is above threshold (valid study time)
-        if (attentionScore < 50) return prev; 
-        if (prev <= 1) {
-          // Cambiar de fase
-          if (pomodoroPhase === "trabajo") {
-            // Después de 4 sesiones de trabajo, descanso largo
-            if (pomodoroSession % 4 === 0) {
-              setPomodoroPhase("descanso-largo");
-              return 15 * 60; // 15 minutos
-            } else {
-              setPomodoroPhase("descanso-corto");
-              return 5 * 60; // 5 minutos
-            }
-          } else {
-            // Volver a trabajo
-            setPomodoroPhase("trabajo");
-            setPomodoroSession(prev => prev + 1);
-            return 25 * 60; // 25 minutos
-          }
+        // If backend status is idle or break_distracted, or if attention is low, do not decrement directly.
+        // The polling useEffect handles resetting/synchronizing in these cases.
+        if (backendPomodoroStatus.status === 'idle' || backendPomodoroStatus.status === 'break_distracted') {
+             return backendPomodoroStatus.time_remaining_in_current_phase; // Sync with backend
         }
-        return prev - 1;
+        
+        // Only decrement when in 'working' phase and attention is above threshold
+        if (backendPomodoroStatus.status === 'working' && attentionScore >= 50) {
+            if (prev <= 1) {
+                // Timer finished, notify backend for phase transition to auto_pause
+                api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'auto_pause', reason: 'work_session_ended' })
+                   .catch(error => console.error('Error posting auto_pause event:', error));
+                return 0; // Will be synced by polling to new phase time
+            }
+            return prev - 1;
+        } 
+        
+        // If in 'paused' status (not break_distracted) and attention is fine,
+        // just keep syncing with backend's remaining time.
+        // Decrementing here is optional as polling should handle it, but for smooth UI:
+        if (backendPomodoroStatus.status === 'paused' && attentionScore >= 50) {
+             if (prev <= 1) {
+                // Pause finished, notify backend for phase transition to work
+                api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'start', reason: 'pause_ended' })
+                   .catch(error => console.error('Error posting start event:', error));
+                setPomodoroSession(prevSession => prevSession + 1); // Increment locally for display
+                return 0; // Will be synced by polling to new phase time
+            }
+            return prev - 1;
+        }
+        
+        return prev; // If none of the above conditions met, maintain current time
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isPomodoroActive, isFeaturesExtracted, pomodoroPhase, pomodoroSession, attentionScore]);
+  }, [isPomodoroActive, isFeaturesExtracted, pomodoroPhase, pomodoroSession, attentionScore, selectedCourse, backendPomodoroStatus]);
 
   // Formatear tiempo en MM:SS
   const formatPomodoroTime = (seconds: number): string => {
@@ -312,18 +393,25 @@ const toggleCamera = async () => {
                     onClick: () => {},
                   },
                 });
+        } 
+        // New logic: Check for distraction during pause
+        if ((pomodoroPhase === 'descanso-corto' || pomodoroPhase === 'descanso-largo') && isPomodoroActive && selectedCourse && isAnalyzing) {
+            // Send distraction event to backend. Backend will update PomodoroSession status to 'break_distracted'
+            api.post('/student/feature-records/', { class_session_id: selectedCourse.id, features: { attentionScore: score }, attention_score: score }).catch(() => {});
+            toast.warning('⚠️ Distracción detectada durante la pausa. Preparate para retomar clases.');
         }
+
         return val;
       });
     } else if (level === 'medium') {
       setShowLowAttentionAlert(false);
       setShowMediumAttentionAlert(true);
-      setConsecutiveLow(0);
+      setConsecutiveLow(0); // Reset consecutive low when attention is medium
       toast.warning('Nivel de atención moderado — mantente enfocado');
-    } else {
+    } else { // level === 'high'
       setShowLowAttentionAlert(false);
       setShowMediumAttentionAlert(false);
-      setConsecutiveLow(0);
+      setConsecutiveLow(0); // Reset consecutive low when attention is high
     }
     // Set attention level UI
     if (score < 40) setAttentionLevel('low');
@@ -353,6 +441,29 @@ const toggleCamera = async () => {
   const handleSelectCourse = (course: Course) => {
     setSelectedCourse(course);
     setCurrentView("classes"); // Redirigir a "Mis Clases"
+  };
+
+  const togglePomodoro = async () => {
+    if (!selectedCourse) {
+      toast.error('Selecciona un curso para iniciar el Pomodoro.');
+      return;
+    }
+    const newPomodoroActiveState = !isPomodoroActive;
+    setIsPomodoroActive(newPomodoroActiveState);
+
+    try {
+      if (newPomodoroActiveState) { // Transitioning from inactive to active
+        await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'start', reason: 'manual_start' });
+        toast.success('Pomodoro iniciado!');
+      } else { // Transitioning from active to inactive
+        await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'end', reason: 'manual_end' });
+        toast.info('Pomodoro pausado.');
+      }
+    } catch (error) {
+      console.error('Error toggling pomodoro:', error);
+      toast.error('Error al cambiar el estado del Pomodoro.');
+      setIsPomodoroActive(!newPomodoroActiveState); // Revert local state if API call fails
+    }
   };
 
   return (
@@ -645,7 +756,7 @@ const toggleCamera = async () => {
                                   <Button
                                     size="sm"
                                     variant="secondary"
-                                    onClick={() => setIsPomodoroActive(!isPomodoroActive)}
+                                    onClick={togglePomodoro}
                                     className="ml-2"
                                   >
                                     {isPomodoroActive ? "Pausar" : "Iniciar"}
