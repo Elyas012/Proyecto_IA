@@ -1,96 +1,188 @@
+# 🎓 Plataforma de Monitoreo de Estudiantes Impulsada por IA
 
-# Plataforma de Monitoreo de Estudiantes Impulsada por IA
+Plataforma de **e-learning inteligente** orientada a mejorar la experiencia de aprendizaje en línea mediante **monitoreo de atención en tiempo real**, analíticas avanzadas y gestión académica integral.
 
-Este proyecto es una plataforma de e-learning diseñada para mejorar la experiencia de aprendizaje en línea a través de herramientas inteligentes de monitoreo y gestión de cursos. La aplicación consta de un backend robusto desarrollado con Django y un frontend moderno e interactivo construido con Next.js.
+El sistema combina **visión por computadora**, **aprendizaje profundo** y una arquitectura moderna **backend–frontend**, permitiendo detectar niveles de distracción de los estudiantes durante sus sesiones de estudio y generar reportes útiles para docentes y administradores.
 
-## Características Principales
+---
 
-### Para Estudiantes
-- **Dashboard Personalizado:** Visualiza cursos inscritos y progreso.
-- **Visualizador de Materiales:** Accede a PDFs y videos del curso directamente en la plataforma.
-- **Técnica Pomodoro:** Herramienta de gestión del tiempo integrada para mejorar la concentración.
-- **Monitoreo de Atención:** Utiliza la cámara web para analizar y proveer feedback sobre los niveles de atención durante las sesiones de estudio, empleando un modelo de IA.
+## 🚀 Características Principales
 
-### Para Profesores
-- **Gestión de Cursos:** Crea, actualiza y gestiona cursos.
-- **Subida de Materiales:** Sube archivos (PDFs, videos) para cada curso.
-- **Reportes de Estudiantes:** Visualiza analíticas detalladas sobre el rendimiento y los niveles de atención de los estudiantes.
+### 👨‍🎓 Para Estudiantes
+- **Dashboard Personalizado**
+  - Visualización de cursos inscritos.
+  - Seguimiento de progreso académico.
+- **Visualizador de Contenidos**
+  - Lectura de PDFs.
+  - Reproducción de videos directamente en la plataforma.
+- **Técnica Pomodoro Integrada**
+  - Gestión del tiempo para mejorar la concentración.
+- **Monitoreo de Atención con IA**
+  - Uso de la cámara web para analizar:
+    - Movimientos oculares.
+    - Apertura/cierre de ojos.
+    - Apertura de la boca.
+  - Extracción de métricas faciales mediante **MediaPipe**.
+  - Evaluación de distracción usando un **modelo LSTM**.
+  - Feedback en tiempo casi real sobre el nivel de atención.
 
-### Para Administradores
-- **Gestión de Usuarios:** Administra los roles y accesos de usuarios en el sistema.
+---
 
-## Tech Stack
+### 👩‍🏫 Para Profesores
+- **Gestión de Cursos**
+  - Creación, edición y administración de cursos.
+- **Subida de Material Académico**
+  - PDFs y videos organizados por curso.
+- **Reportes de Atención y Rendimiento**
+  - Visualización de métricas de atención.
+  - Análisis del comportamiento de los estudiantes durante las sesiones.
 
-- **Backend:**
-  - **Framework:** Django & Django REST Framework
-  - **Lenguaje:** Python
-  - **Base de Datos:** MySQL(Almacenamiento general) y MongoDB(Metricas)
-  - **Inteligencia Artificial:** TensorFlow/Keras (para el modelo LSTM de detección de distracciones), Scikit-learn.
+---
 
-- **Frontend:**
-  - **Framework:** Next.js & React
-  - **Lenguaje:** TypeScript
-  - **Estilos:** Tailwind CSS (con shadcn/ui)
-  - **Componentes:** Gráficos, reproductores de video, visores de PDF.
+### 🛠️ Para Administradores
+- **Gestión de Usuarios**
+  - Control de roles (estudiante, profesor, administrador).
+  - Administración de accesos y permisos del sistema.
 
-## Estructura del Proyecto
+---
 
-El repositorio está organizado en dos directorios principales:
+## 🧠 Inteligencia Artificial y Monitoreo
 
-- **`/backed_django`**: Contiene todo el código del servidor, la API REST, los modelos de base de datos y la lógica de IA.
-- **`/fronted_nextjs`**: Contiene la aplicación de Next.js, las páginas, componentes de UI y la lógica de interacción con el usuario.
+El sistema de monitoreo funciona de la siguiente manera:
 
-## Puesta en Marcha (Getting Started)
+1. **Captura de video** desde la cámara del estudiante.
+2. **MediaPipe Face Mesh** extrae coordenadas numéricas de:
+   - Ojos
+   - Boca
+3. Estas métricas se convierten en **series temporales**.
+4. Un **modelo LSTM** procesa los datos para clasificar estados como:
+   - Atención
+   - Distracción
+5. Las métricas se almacenan en **MongoDB** para análisis posterior.
 
-Sigue estos pasos para configurar y ejecutar el proyecto en tu entorno local.
+---
 
-### Prerrequisitos
-- Python 3.9+
-- Node.js 18+
-- npm/yarn
+## 🧰 Tech Stack
 
-### 1. Configuración del Backend (Django)
+### 🔙 Backend
+- **Framework:** Django, Django REST Framework
+- **Lenguaje:** Python
+- **Base de Datos:**
+  - MySQL → almacenamiento general (usuarios, cursos, materiales)
+  - MongoDB → métricas de atención y datos temporales
+- **IA & ML:**
+  - TensorFlow / Keras (modelo LSTM)
+  - Scikit-learn
+  - MediaPipe
 
-```bash
-# 1. Navega al directorio del backend
+---
+
+### 🔜 Frontend
+- **Framework:** Next.js, React
+- **Lenguaje:** TypeScript
+- **Estilos:** Tailwind CSS + shadcn/ui
+- **Componentes:**
+  - Dashboards interactivos
+  - Gráficos de métricas
+  - Reproductor de video
+  - Visor de PDF
+
+---
+
+## 📁 Estructura del Proyecto
+
+\
+├───.git\
+├───backed_django\
+│   ├───.venv\
+│   │   ├───Lib\
+│   │   └───Scripts\
+│   ├───api\
+│   │   ├───management\
+│   │   │   └───commands\
+│   │   └───migrations\
+│   ├───media\
+│   │   └───course_materials\
+│   └───monitoring\
+└───fronted_nextjs\
+    ├───.next\
+    ├───components\
+    │   ├───Figma\
+    │   └───ui\
+    ├───lib\
+    ├───models\
+    ├───node_modules\
+    ├───pages\
+    │   └───api\
+    │       └───auth\
+    ├───public\
+    │   └───models\
+    │       └───attention_model\
+    ├───scripts\
+    └───styles\
+
+
+- **`/backed_django`**  
+  Contiene la API REST, lógica de negocio, modelos de base de datos y procesamiento de IA.
+
+- **`/fronted_nextjs`**  
+  Aplicación web moderna para interacción con estudiantes, docentes y administradores.
+
+---
+
+## ⚙️ Puesta en Marcha (Getting Started)
+
+### 📌 Prerrequisitos
+- Python **3.9+**
+- Node.js **18+**
+- npm o yarn
+- MySQL
+- MongoDB
+
+---
+
+### 🔧 Backend (Django)
+
+# Navegar al backend
 cd backed_django
 
-# 2. Crea y activa un entorno virtual
+# Crear entorno virtual
 python -m venv .venv
-# En Windows
+
+# Activar entorno virtual
+# Windows
 .\.venv\Scripts\activate
-# En macOS/Linux
+# Linux / macOS
 source .venv/bin/activate
 
-# 3. Instala las dependencias
+# Instalar dependencias
 pip install -r requirements.txt
 
-# 4. Aplica las migraciones de la base de datos
+# Aplicar migraciones
 python manage.py migrate
 
-# 5. Inicia el servidor de desarrollo (en http://127.0.0.1:8000)
+# Iniciar servidor
 python manage.py runserver
-```
 
-### 2. Configuración del Frontend (Next.js)
 
-```bash
-# 1. Abre una nueva terminal y navega al directorio del frontend
+Servidor disponible en:
+👉 http://127.0.0.1:8000
+
+### 🎨 Frontend (Next.js)
+# Navegar al frontend
 cd fronted_nextjs
 
-# 2. Instala las dependencias
+# Instalar dependencias
 npm install
 
-# 3. Inicia el servidor de desarrollo (en http://localhost:3000)
+# Iniciar servidor
 npm run dev
-```
 
-### 3. Acceder a la Aplicación
+Aplicación disponible en:
+👉 http://localhost:3000
 
-Una vez que ambos servidores estén en ejecución:
-- Abre tu navegador y ve a `http://localhost:3000`.
-- Para interactuar con la API, las rutas están disponibles en `http://127.0.0.1:8000/api/`.
+### 📄 Licencia
 
-## Licencia
+Este proyecto se distribuye bajo la Licencia MIT.
+Eres libre de usar, modificar y distribuir el software citando al autor.
 
-Este proyecto se distribuye bajo la Licencia MIT. Consulta el archivo `LICENSE` para más detalles.
