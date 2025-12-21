@@ -24,7 +24,7 @@ Este proyecto es una plataforma de e-learning diseñada para mejorar la experien
 - **Backend:**
   - **Framework:** Django & Django REST Framework
   - **Lenguaje:** Python
-  - **Base de Datos:** SQLite (para desarrollo)
+  - **Base de Datos:** MySQL(Almacenamiento general) y MongoDB(Metricas)
   - **Inteligencia Artificial:** TensorFlow/Keras (para el modelo LSTM de detección de distracciones), Scikit-learn.
 
 - **Frontend:**
