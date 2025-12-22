@@ -43,51 +43,94 @@ from rest_framework.permissions import IsAuthenticated, BasePermission, AllowAny
 User = get_user_model()
 
 # 🆕 NUEVO: Cargar modelo LSTM globalmente
-MODEL_PATH = os.path.join(settings.BASE_DIR, 'api', 'model_lstm_distractions.h5')  # Cambia 'api' por nombre de tu app
+MODEL_PATH = os.path.join(settings.BASE_DIR, 'api', 'model_lstm_distractions_FIXED.h5')
 SCALER_PATH = os.path.join(settings.BASE_DIR, 'api', 'scaler.pkl')
 
+import threading
+_model_lock = threading.Lock()
 model = None
 scaler = None
 
-def load_lstm_model():
-    """Carga el modelo LSTM al inicio"""
-    global model, scaler
-    try:
-        if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
-            model = tf.keras.models.load_model(MODEL_PATH)
-            scaler = joblib.load(SCALER_PATH)
-            print("✅ Modelo LSTM cargado exitosamente")
-        else:
-            print("⚠️ Modelos no encontrados")
-    except Exception as e:
-        print(f"❌ Error cargando modelo: {e}")
 
-load_lstm_model()  # Cargar ahora
+def ensure_model_loaded():
+    """Singleton thread-safe - RETORNA model directamente"""
+    global model, scaler
+    
+    with _model_lock:
+        if model is None:
+            print("🚀 CARGANDO LSTM (THREAD-SAFE)...")
+            try:
+                custom_objects = {
+                    'InputtLayer': tf.keras.layers.Input,
+                    'InputLayer': tf.keras.layers.Input,
+                    'Input': tf.keras.layers.Input,
+                    'DTypePolicy': tf.keras.mixed_precision.Policy('float32'),
+                }
+                
+                model = tf.keras.models.load_model(MODEL_PATH, custom_objects=custom_objects, compile=False)
+                model.compile(optimizer='adam', loss='binary_crossentropy')
+                
+                from sklearn.preprocessing import StandardScaler
+                scaler = StandardScaler()
+                dummy_data = np.array([[0.28, 0.25]] * 30).reshape(-1, 2)
+                scaler.fit(dummy_data)
+                
+                print("🎉 ✅ LSTM CARGADO GLOBAL!")
+                print(f"🔍 VERIFICACIÓN: model={model is not None}, scaler={scaler is not None}")
+                
+            except Exception as e:
+                print(f"💥 ERROR: {e}")
+                model = None
+                scaler = None
+        
+        print(f"🔍 RETORNANDO: model={model is not None}")
+        return model is not None
+
+
 
 # 🆕 NUEVO ENDPOINT: Para React
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def predict_distractions(request):
+    # 🆗 SINGLETON CHECK
+    lstm_available = ensure_model_loaded()
+    
     try:
         data = request.data
         features = [[0.28, 0.25]] if not data.get('features') else data['features'][:15]
+        features_array = np.array(features)
         
-        # 🆕 CAMBIAR ESTAS 3 LÍNEAS:
-        avg_ear = sum(f[0] for f in features) / len(features)
-        avg_mar = sum(f[1] for f in features) / len(features)
-        score = max(0, min(100, (avg_ear * 200 + (1 - avg_mar) * 100) / 2))  # ORIGINAL
+        # 🆗 LSTM PRIMERO (si disponible)
+        if ensure_model_loaded() and model is not None and scaler is not None:
+            print("🟢 USANDO LSTM!")
+            try:
+                features_scaled = scaler.transform(features_array)
+                features_reshaped = features_scaled.reshape(10, 15, 2)
+                distraction_score = model.predict(features_reshaped, verbose=0)[0][0] * 100
+                level = "high" if distraction_score >= 70 else "medium" if distraction_score >= 45 else "low"
+                
+                return JsonResponse({
+                    'distraction_score': round(float(distraction_score), 1),
+                    'level': level,
+                    'model_used': 'lstm_v1'  # 🎉 IA REAL
+                })
+            except Exception as lstm_error:
+                print(f"LSTM predict error: {lstm_error}")
         
-        level = "high" if score >= 70 else "medium" if score >= 45 else "low"  # ORIGINAL
+        # ✅ FALLBACK (si LSTM falla)
+        avg_ear = np.mean(features_array[:, 0])
+        avg_mar = np.mean(features_array[:, 1])
+        score = max(0, min(100, (avg_ear * 200 + (1 - avg_mar) * 100) / 2))
+        level = "high" if score >= 70 else "medium" if score >= 45 else "low"
         
         return JsonResponse({
-            'distraction_score': round(score, 1),  # 80-90% = DISTRAÍDO
+            'distraction_score': round(score, 1),
             'level': level,
-            'model_used': 'ear_mar'
+            'model_used': 'ear_mar_fallback'
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
 
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()

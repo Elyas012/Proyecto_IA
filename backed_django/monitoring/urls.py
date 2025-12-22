@@ -8,7 +8,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('api.urls')),  # ✅ CAMBIAR 'attention' por 'api'
+    path('api/', include('api.urls')),  
 ]
 
 if settings.DEBUG:
