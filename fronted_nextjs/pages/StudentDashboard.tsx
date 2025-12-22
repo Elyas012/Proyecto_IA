@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import api from '../lib/api';
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -14,7 +14,6 @@ import {
   Camera, 
   CameraOff, 
   AlertCircle,
-  CheckCircle,
   Activity,
   Clock,
   TrendingUp,
@@ -26,7 +25,7 @@ import {
   Brain,
   PlayCircle
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StudentReport } from "./StudentReport";
 import WebcamCapture from "../components/WebcamCapture";
 import CourseMaterials from "../components/CourseMaterials";
@@ -72,7 +71,7 @@ interface StudentDashboardProps {
 
 interface PomodoroBackendStatus {
   status: 'idle' | 'working' | 'paused' | 'break_distracted';
-  time_remaining_in_current_phase: number; // in seconds
+  time_remaining_in_current_phase: number;
   is_distracted_during_pause: boolean;
   work_duration_minutes: number;
   pause_duration_minutes: number;
@@ -105,7 +104,6 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [pomodoroMetrics, setPomodoroMetrics] = useState<PomodoroMetrics | null>(null);
   const [autoPauseTriggered, setAutoPauseTriggered] = useState(false);
   
-  // Estados para Pomodoro
   const [pomodoroSession, setPomodoroSession] = useState(1);
   const [pomodoroPhase, setPomodoroPhase] = useState<PomodoroPhase>("trabajo");
   const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
@@ -136,9 +134,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     }
   };
 
-  // Cargar cursos del estudiante desde la API
   const loadCourses = async () => {
-    // Avoid calling API when there's no token to prevent noisy 401 runtime errors
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
@@ -154,12 +150,12 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     }
   };
 
-  const handleFeaturesExtracted = (ready: boolean) => {
+  const handleFeaturesExtracted = useCallback((ready: boolean) => {
+    console.log('📦 Features extracted:', ready);
     setIsFeaturesExtracted(ready);
-  };
+  }, []);
 
   useEffect(() => {
-    // Load user and courses if an auth token exists in localStorage
     const token = localStorage.getItem('authToken');
     setToken(token);
     if (token) {
@@ -169,7 +165,6 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     }
   }, []);
 
-  // Effect to poll backend for pomodoro status
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined;
 
@@ -183,57 +178,49 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
         const data: PomodoroBackendStatus = response.data;
         setBackendPomodoroStatus(data);
 
-        // Synchronize frontend state with backend
         if (data.status === 'working') {
           if (pomodoroPhase !== 'trabajo') setPomodoroPhase('trabajo');
           setPomodoroTimeLeft(data.time_remaining_in_current_phase);
         } else if (data.status === 'paused' || data.status === 'break_distracted') {
-          if (pomodoroPhase === 'trabajo') { // Just transitioned from work to pause
+          if (pomodoroPhase === 'trabajo') {
             if (pomodoroSession % 4 === 0) {
               setPomodoroPhase('descanso-largo');
             } else {
               setPomodoroPhase('descanso-corto');
             }
           }
-          // If backend reports distraction and local is in pause, reset/extend the pause
           if (data.is_distracted_during_pause && (pomodoroPhase === 'descanso-corto' || pomodoroPhase === 'descanso-largo')) {
             toast.error('🛑 Distracción detectada durante el descanso. La pausa se ha reiniciado.');
-            setPomodoroTimeLeft(data.pause_duration_minutes * 60); // Reset pause timer
-          }
-          // Always sync time, even if it's a regular pause
-          else {
-              setPomodoroTimeLeft(data.time_remaining_in_current_phase);
+            setPomodoroTimeLeft(data.pause_duration_minutes * 60);
+          } else {
+            setPomodoroTimeLeft(data.time_remaining_in_current_phase);
           }
         } else if (data.status === 'idle') {
-            // If backend is idle, stop local pomodoro
-            setIsPomodoroActive(false);
-            setPomodoroTimeLeft(0);
-            setPomodoroPhase('trabajo'); // Reset for next session
+          setIsPomodoroActive(false);
+          setPomodoroTimeLeft(0);
+          setPomodoroPhase('trabajo');
         }
-
       } catch (error) {
         console.error('Error fetching pomodoro status:', error);
       }
     };
 
     if (isPomodoroActive && selectedCourse && token) {
-      // Fetch immediately and then set up interval
       fetchPomodoroStatus(); 
-      interval = setInterval(fetchPomodoroStatus, 5000); // Poll every 5 seconds
+      interval = setInterval(fetchPomodoroStatus, 5000);
     } else {
-      // Clear interval if pomodoro is not active or no course/token
       if (interval) clearInterval(interval);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isPomodoroActive, selectedCourse, token, pomodoroPhase]); // Added pomodoroPhase to dependencies
+  }, [isPomodoroActive, selectedCourse, token, pomodoroPhase, pomodoroSession]);
 
-  // Record actual attention value to history every 2s while analyzing
   const attentionScoreRef = useRef<number>(attentionScore);
   useEffect(() => {
     attentionScoreRef.current = attentionScore;
+    console.log('📊 attentionScoreRef updated to:', attentionScore);
   }, [attentionScore]);
 
   useEffect(() => {
@@ -249,108 +236,138 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     return () => clearInterval(interval);
   }, [isAnalyzing, isFeaturesExtracted]);
 
-
   useEffect(() => {
     if (!isAnalyzing || !isFeaturesExtracted) {
-      // Clear attention history when analysis stops or features are no longer extracted
       setAttentionHistory([]);
     }
   }, [isAnalyzing, isFeaturesExtracted]);
 
-  // Temporizador Pomodoro
-  useEffect(() => {
-    if (!isPomodoroActive || !isFeaturesExtracted || !selectedCourse || !backendPomodoroStatus) return;
-    const interval = setInterval(() => {
-      setPomodoroTimeLeft(prev => {
-        // If backend status is idle or break_distracted, or if attention is low, do not decrement directly.
-        // The polling useEffect handles resetting/synchronizing in these cases.
-        if (backendPomodoroStatus.status === 'idle' || backendPomodoroStatus.status === 'break_distracted') {
-             return backendPomodoroStatus.time_remaining_in_current_phase; // Sync with backend
+  // Temporizador Pomodoro - VERSIÓN CORREGIDA
+useEffect(() => {
+  if (!isPomodoroActive || !isFeaturesExtracted || !selectedCourse || !backendPomodoroStatus) return;
+  
+  const interval = setInterval(() => {
+    setPomodoroTimeLeft(prev => {
+      const currentStatus = backendPomodoroStatus.status;
+      const currentAttention = attentionScoreRef.current;
+      
+      // Si backend está idle o break_distracted, sincroniza con backend
+      if (currentStatus === 'idle' || currentStatus === 'break_distracted') {
+        return backendPomodoroStatus.time_remaining_in_current_phase;
+      }
+      
+      // Solo decrementa si la atención es >= 50
+      const shouldDecrement = currentAttention >= 50;
+      
+      // En fase de trabajo
+      if (currentStatus === 'working') {
+        if (prev <= 1) {
+          // ✅ Timer finished, transición a descanso
+          const nextSession = pomodoroSession;
+          console.log('🏁 Sesión completada:', nextSession);
+          
+          // Determinar tipo de descanso
+          if (nextSession % 4 === 0) {
+            console.log('🎉 Descanso largo (5 min) después de 4 sesiones');
+            setPomodoroPhase('descanso-largo');
+            setPomodoroTimeLeft(5 * 60); // 5 minutos
+          } else {
+            console.log('☕ Descanso corto (2 min)');
+            setPomodoroPhase('descanso-corto');
+            setPomodoroTimeLeft(2 * 60); // 2 minutos
+          }
+          
+          // Notificar al backend
+          api.post('/student/pomodoro-events/', { 
+            class_session_id: selectedCourse.id, 
+            event_type: 'auto_pause', 
+            reason: 'work_session_ended',
+            session_number: nextSession
+          }).catch(error => console.error('Error posting auto_pause event:', error));
+          
+          return nextSession % 4 === 0 ? (5 * 60) : (2 * 60);
         }
-        
-        // Only decrement when in 'working' phase and attention is above threshold
-        if (backendPomodoroStatus.status === 'working' && attentionScore >= 50) {
-            if (prev <= 1) {
-                // Timer finished, notify backend for phase transition to auto_pause
-                api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'auto_pause', reason: 'work_session_ended' })
-                   .catch(error => console.error('Error posting auto_pause event:', error));
-                return 0; // Will be synced by polling to new phase time
-            }
-            return prev - 1;
-        } 
-        
-        // If in 'paused' status (not break_distracted) and attention is fine,
-        // just keep syncing with backend's remaining time.
-        // Decrementing here is optional as polling should handle it, but for smooth UI:
-        if (backendPomodoroStatus.status === 'paused' && attentionScore >= 50) {
-             if (prev <= 1) {
-                // Pause finished, notify backend for phase transition to work
-                api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'start', reason: 'pause_ended' })
-                   .catch(error => console.error('Error posting start event:', error));
-                setPomodoroSession(prevSession => prevSession + 1); // Increment locally for display
-                return 0; // Will be synced by polling to new phase time
-            }
-            return prev - 1;
+        // Solo decrementa si hay buena atención, sino mantiene el tiempo
+        return shouldDecrement ? prev - 1 : prev;
+      }
+      
+      // En fase de pausa (descanso)
+      if (currentStatus === 'paused') {
+        if (prev <= 1) {
+          // ✅ Descanso terminado, incrementar sesión y volver a trabajo
+          const newSession = pomodoroSession + 1;
+          console.log('🚀 Iniciando sesión:', newSession);
+          
+          setPomodoroSession(newSession); // ✅ Incrementar AQUÍ
+          setPomodoroPhase('trabajo');
+          setPomodoroTimeLeft(25 * 60); // 25 minutos de trabajo
+          
+          // Notificar al backend
+          api.post('/student/pomodoro-events/', { 
+            class_session_id: selectedCourse.id, 
+            event_type: 'start', 
+            reason: 'pause_ended',
+            session_number: newSession
+          }).catch(error => console.error('Error posting start event:', error));
+          
+          return 25 * 60;
         }
-        
-        return prev; // If none of the above conditions met, maintain current time
-      });
-    }, 1000);
+        // Durante la pausa, siempre decrementa
+        return prev - 1;
+      }
+      
+      return prev;
+    });
+  }, 1000);
 
-    return () => clearInterval(interval);
-  }, [isPomodoroActive, isFeaturesExtracted, pomodoroPhase, pomodoroSession, attentionScore, selectedCourse, backendPomodoroStatus]);
+  return () => clearInterval(interval);
+}, [isPomodoroActive, isFeaturesExtracted, selectedCourse, backendPomodoroStatus, pomodoroSession]);
+// ✅ IMPORTANTE: Agregar pomodoroSession a las dependencias
 
-  // Formatear tiempo en MM:SS
   const formatPomodoroTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  // Obtener nombre de la fase
   const getPhaseName = (): string => {
     if (pomodoroPhase === "trabajo") return "Sesión de Trabajo";
     if (pomodoroPhase === "descanso-corto") return "Descanso Corto";
     return "Descanso Largo";
   };
 
-  // Activar/desactivar cámara
-const toggleCamera = async () => {
-  if (isCameraActive) {
-    // Apagar cámara
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setIsCameraActive(false);
-    return;
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: false,
-    });
-    streamRef.current = stream;
-
-    if (videoRef.current) {
-      // Punto clave: asignar el stream al video
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      videoRef.current.srcObject = stream as any;
+  const toggleCamera = async () => {
+    if (isCameraActive) {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      setIsCameraActive(false);
+      return;
     }
 
-    setIsCameraActive(true);
-  } catch (err) {
-    console.error("Error activando cámara:", err);
-    toast.error("No se pudo activar la cámara");
-  }
-};
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+      streamRef.current = stream;
 
+      if (videoRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        videoRef.current.srcObject = stream as any;
+      }
 
-  // Iniciar análisis y extracción de features
+      setIsCameraActive(true);
+    } catch (err) {
+      console.error("Error activando cámara:", err);
+      toast.error("No se pudo activar la cámara");
+    }
+  };
+
   const startAnalysis = () => {
     if (!isCameraActive) {
       alert("Primero debes activar la cámara");
@@ -376,7 +393,6 @@ const toggleCamera = async () => {
       }
     }, 500);
     
-    // 🆕 FORCE después 5s (SIN onFeaturesExtracted)
     setTimeout(() => {
       if (!isFeaturesExtractedRef.current) {
         console.log('🔥 FORCE FEATURES READY');
@@ -385,99 +401,110 @@ const toggleCamera = async () => {
     }, 5000);
   };
 
-
   const stopAnalysis = () => {
     setIsAnalyzing(false);
     setIsFeaturesExtracted(false);
     setExtractionProgress(0);
   };
 
-  // Handle attention updates coming from WebcamCapture
-  const handleAttentionUpdate = (score: number, level: 'high' | 'medium' | 'low') => {
-    setAttentionScore(score);
-    console.log('StudentDashboard: attentionScore updated to', score, 'level:', level);
-    
-    // 🆕 NUEVA LÓGICA: Pausa SOLO si score <= 30% POR 5 SEGUNDOS
-    if (score <= 30) {  // ❌ CAMBIADO: Ya NO usa 'level === low'
-      setConsecutiveLow(prev => {
-        const val = prev + 1;
+  // ✅ CRITICAL: useCallback para prevenir re-montaje de WebcamCapture
+const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'medium' | 'low') => {
+  console.log('🔥🔥🔥 handleAttentionUpdate CALLED:', { 
+    score, 
+    level,
+    timestamp: new Date().toLocaleTimeString() 
+  });
+  
+  setAttentionScore(score);
+  console.log('✅✅✅ setAttentionScore executed with:', score);
+  
+  // ✅ CAMBIO: Pausa SOLO si score <= 30% POR 5-10 SEGUNDOS (usaremos 7s como promedio)
+  if (score <= 30) {
+    setConsecutiveLow(prev => {
+      const val = prev + 1;
+      
+      // ✅ PAUSA AUTOMÁTICA: SOLO 0-30% POR 7 SEGUNDOS CONSECUTIVOS
+      if (val >= 7 && pomodoroPhase === 'trabajo' && isPomodoroActive) {
+        console.log('⏸️ PAUSA AUTOMÁTICA: 7 segundos de baja atención');
         
-        // ✅ PAUSA AUTOMÁTICA: SOLO 0-30% POR 5 SEGUNDOS CONSECUTIVOS
-        if (val >= 5 && pomodoroPhase === 'trabajo' && isPomodoroActive) {
-          setPomodoroTimeLeft(0);
-          setAutoPauseTriggered(true);
-          setTimeout(() => setAutoPauseTriggered(false), 5000);
-          
-          // Record auto-pause event to backend
-          if (selectedCourse && isAnalyzing) {
-            api.post('/student/pomodoro-events/', { 
-              class_session_id: selectedCourse.id, 
-              event_type: 'auto_pause', 
-              reason: 'low_attention_5s',
-              distraction_count: val  // 🆕 Número de segundos bajos
-            }).catch(() => {});
-          }
-          
-          toast('🛑 Pausa automática activada: baja atención (' + val + 's consecutivos)', {
-            action: {
-              label: 'OK',
-              onClick: () => {},
-            },
-          });
-          return 0;  // 🆕 Reset inmediato
-        }
+        // Determinar tipo de descanso según la sesión actual
+        const isLongBreak = pomodoroSession % 4 === 0;
+        const breakDuration = isLongBreak ? (5 * 60) : (2 * 60); // 5 min o 2 min
         
-        // 🆕 Lógica pausa durante descanso (mantiene igual)
-        if ((pomodoroPhase === 'descanso-corto' || pomodoroPhase === 'descanso-largo') && 
-            isPomodoroActive && selectedCourse && isAnalyzing) {
-          api.post('/student/feature-records/', { 
+        setPomodoroPhase(isLongBreak ? 'descanso-largo' : 'descanso-corto');
+        setPomodoroTimeLeft(breakDuration);
+        setAutoPauseTriggered(true);
+        setTimeout(() => setAutoPauseTriggered(false), 5000);
+        
+        // Record auto-pause event to backend
+        if (selectedCourse && isAnalyzing) {
+          api.post('/student/pomodoro-events/', { 
             class_session_id: selectedCourse.id, 
-            features: { attentionScore: score }, 
-            attention_score: score 
+            event_type: 'auto_pause', 
+            reason: 'low_attention_7s',
+            distraction_count: val,
+            session_number: pomodoroSession
           }).catch(() => {});
-          toast.warning('⚠️ Distracción detectada durante la pausa. Preparate para retomar clases.');
         }
+        
+        toast(`🛑 Pausa automática: ${val}s de baja atención. ${isLongBreak ? 'Descanso largo (5 min)' : 'Descanso corto (2 min)'}`, {
+          action: {
+            label: 'OK',
+            onClick: () => {},
+          },
+        });
+        return 0; // Reset contador
+      }
+      
+      // Lógica pausa durante descanso (mantiene igual)
+      if ((pomodoroPhase === 'descanso-corto' || pomodoroPhase === 'descanso-largo') && 
+          isPomodoroActive && selectedCourse && isAnalyzing) {
+        api.post('/student/feature-records/', { 
+          class_session_id: selectedCourse.id, 
+          features: { attentionScore: score }, 
+          attention_score: score 
+        }).catch(() => {});
+        toast.warning('⚠️ Distracción durante pausa.');
+      }
 
-        return val;
-      });
-    } else {
-      // ✅ RESET: Si score > 30%, contador = 0
-      setConsecutiveLow(0);
-      setShowLowAttentionAlert(false);
-      setShowMediumAttentionAlert(false);
-    }
-    
-    // 🆕 ALERTAS SIMPLIFICADAS (independientes de pausa)
-    if (score < 40) {
-      setAttentionLevel('low');
-      setShowLowAttentionAlert(true);
-      setShowMediumAttentionAlert(false);
-    } else if (score < 70) {
-      setAttentionLevel('medium');
-      setShowLowAttentionAlert(false);
-      setShowMediumAttentionAlert(true);
-      toast.warning('Nivel de atención moderado — mantente enfocado');
-    } else {
-      setAttentionLevel('high');
-      setShowLowAttentionAlert(false);
-      setShowMediumAttentionAlert(false);
-    }
+      return val;
+    });
+  } else {
+    // ✅ RESET: Si score > 30%, contador = 0
+    setConsecutiveLow(0);
+    setShowLowAttentionAlert(false);
+    setShowMediumAttentionAlert(false);
+  }
+  
+  // Alertas (mantiene igual)
+  if (score < 40) {
+    setAttentionLevel('low');
+    setShowLowAttentionAlert(true);
+    setShowMediumAttentionAlert(false);
+  } else if (score < 70) {
+    setAttentionLevel('medium');
+    setShowLowAttentionAlert(false);
+    setShowMediumAttentionAlert(true);
+  } else {
+    setAttentionLevel('high');
+    setShowLowAttentionAlert(false);
+    setShowMediumAttentionAlert(false);
+  }
 
-    // 🆕 RECORD ATTENTION CADA 1s (para precisión 5s)
-    const now = Date.now();
-    if (selectedCourse && isAnalyzing && 
-        (!lastReportedRef.current || (now - lastReportedRef.current) > 1000)) {  // 15s → 1s
-      lastReportedRef.current = now;
-      // ✅ FIXED 
-      api.post('/student/record-attention/', { 
-        class_session_id: selectedCourse.id, 
-        attention_score: score,  // ✅ CAMBIAR distraction_score → attention_score
-        raw_features: [], 
-        duration_seconds: 1 
-      }).catch(() => {});
-    }
-  };
-
+  // Record attention
+  const now = Date.now();
+  if (selectedCourse && isAnalyzing && 
+      (!lastReportedRef.current || (now - lastReportedRef.current) > 1000)) {
+    lastReportedRef.current = now;
+    api.post('/student/record-attention/', { 
+      class_session_id: selectedCourse.id, 
+      attention_score: score,
+      raw_features: [], 
+      duration_seconds: 1 
+    }).catch(() => {});
+  }
+}, [pomodoroPhase, isPomodoroActive, selectedCourse, isAnalyzing, pomodoroSession]);
+// ✅ Agregar pomodoroSession a las dependencias
 
   const getAttentionColor = () => {
     if (attentionLevel === "high") return "text-green-600";
@@ -493,7 +520,7 @@ const toggleCamera = async () => {
 
   const handleSelectCourse = (course: Course) => {
     setSelectedCourse(course);
-    setCurrentView("classes"); // Redirigir a "Mis Clases"
+    setCurrentView("classes");
   };
 
   const togglePomodoro = async () => {
@@ -505,21 +532,17 @@ const toggleCamera = async () => {
     setIsPomodoroActive(newPomodoroActiveState);
 
     try {
-      if (newPomodoroActiveState) { // Transitioning from inactive to active
-        // Automatically start analysis if camera is active and analysis is not already running
-        if (isCameraActive && !isAnalyzing) {
-          startAnalysis();
-        }
+      if (newPomodoroActiveState) {
         await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'start', reason: 'manual_start' });
         toast.success('Pomodoro iniciado!');
-      } else { // Transitioning from active to inactive (pausing)
+      } else {
         await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'manual_pause', reason: 'manual_pause_request' });
         toast.info('Pomodoro pausado.');
       }
     } catch (error) {
       console.error('Error toggling pomodoro:', error);
       toast.error('Error al cambiar el estado del Pomodoro.');
-      setIsPomodoroActive(!newPomodoroActiveState); // Revert local state if API call fails
+      setIsPomodoroActive(!newPomodoroActiveState);
     }
   };
 
@@ -527,10 +550,9 @@ const toggleCamera = async () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
       <Toaster position="top-right" />
       <div className="flex">
-        {/* Sidebar */}
         <aside className="w-64 min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl">
           <div className="mb-8">
-            <h2 className="bg-gradient-to-r from-cyan-400 to-cyan-500 bg-clip-text text-transparent">FocusLearn</h2>
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-cyan-500 bg-clip-text text-transparent">FocusLearn</h2>
             <p className="text-gray-400 text-sm mt-1">Panel Estudiante</p>
           </div>
 
@@ -611,17 +633,14 @@ const toggleCamera = async () => {
           </div>
         </aside>
 
-        {/* Main Content */}
         <main className="flex-1 p-8">
-          {/* Dashboard View */}
           {currentView === "dashboard" && (
             <div>
               <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Bienvenido, {user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}` : (user.username || user.email)) : 'Estudiante'}</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Bienvenido, {user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}` : (user.username || user.email)) : 'Estudiante'}</h1>
                 <p className="text-gray-600">Selecciona un curso para comenzar</p>
               </div>
 
-              {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <Card className="border-l-4 border-l-cyan-500">
                   <CardHeader className="pb-3">
@@ -629,7 +648,7 @@ const toggleCamera = async () => {
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-cyan-600">{pomodoroMetrics ? pomodoroMetrics.total_events : '—'}</span>
+                      <span className="text-3xl font-bold text-cyan-600">{pomodoroMetrics ? pomodoroMetrics.total_events : '—'}</span>
                       <TrendingUp className="w-5 h-5 text-green-600" />
                     </div>
                     <p className="text-sm text-gray-500 mt-1">Totales</p>
@@ -642,7 +661,7 @@ const toggleCamera = async () => {
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-green-600">{pomodoroMetrics ? pomodoroMetrics.auto_pauses : '—'}</span>
+                      <span className="text-3xl font-bold text-green-600">{pomodoroMetrics ? pomodoroMetrics.auto_pauses : '—'}</span>
                       <BookOpen className="w-5 h-5 text-green-600" />
                     </div>
                     <p className="text-sm text-gray-500 mt-1">Registradas</p>
@@ -655,7 +674,7 @@ const toggleCamera = async () => {
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-blue-600">{pomodoroMetrics ? `${(pomodoroMetrics.effective_seconds / 3600).toFixed(1)}h` : '—'}</span>
+                      <span className="text-3xl font-bold text-blue-600">{pomodoroMetrics ? `${(pomodoroMetrics.effective_seconds / 3600).toFixed(1)}h` : '—'}</span>
                       <Clock className="w-5 h-5 text-blue-600" />
                     </div>
                     <p className="text-sm text-gray-500 mt-1">Horas registradas</p>
@@ -663,7 +682,6 @@ const toggleCamera = async () => {
                 </Card>
               </div>
 
-              {/* Cursos Disponibles */}
               <Card className="mb-8">
                 <CardHeader>
                   <CardTitle>Cursos Disponibles</CardTitle>
@@ -708,7 +726,7 @@ const toggleCamera = async () => {
                               <BookOpen className="w-6 h-6" />
                             </div>
                             <div>
-                              <p className="text-gray-900">{course.name}</p>
+                              <p className="font-semibold text-gray-900">{course.name}</p>
                               <p className="text-sm text-gray-600">{course.professor} - {course.time}</p>
                             </div>
                           </div>
@@ -731,9 +749,8 @@ const toggleCamera = async () => {
                 </CardContent>
               </Card>
 
-              {/* Instrucciones */}
               {!selectedCourse && (
-                <Alert className="border-cyan-300 bg-cyan-50">
+                <Alert className="border-cyan-300 bg-cyan-50 mb-8">
                   <AlertCircle className="h-4 w-4 text-cyan-600" />
                   <AlertDescription className="text-cyan-700">
                     <strong>Instrucciones:</strong> Selecciona un curso para comenzar. Luego ve a "Mis Clases" para activar la cámara e iniciar el análisis de atención.
@@ -741,7 +758,6 @@ const toggleCamera = async () => {
                 </Alert>
               )}
 
-              {/* Quick Access to Report */}
               <Card className="border-2 border-cyan-200 bg-gradient-to-br from-cyan-50 to-cyan-100">
                 <CardHeader>
                   <div className="flex items-center space-x-2">
@@ -768,11 +784,10 @@ const toggleCamera = async () => {
             </div>
           )}
 
-          {/* Classes View - Video Analysis */}
           {currentView === "classes" && (
             <div>
               <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Sala de Clase Virtual</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Sala de Clase Virtual</h1>
                 <p className="text-gray-600">
                   {selectedCourse 
                     ? `Configuración y análisis - ${selectedCourse.name}`
@@ -782,7 +797,6 @@ const toggleCamera = async () => {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Video Section */}
                 <div className="lg:col-span-2 space-y-6">
                   <Card>
                     <CardHeader>
@@ -791,7 +805,6 @@ const toggleCamera = async () => {
                     </CardHeader>
                     <CardContent>
                       <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
-                        {/* Temporizador Pomodoro - Arriba de la cámara */}
                         {isCameraActive && isFeaturesExtracted && (
                           <motion.div
                             initial={{ opacity: 0, y: -20 }}
@@ -806,7 +819,7 @@ const toggleCamera = async () => {
                                     <p className="text-sm text-cyan-100">
                                       {getPhaseName()} #{pomodoroSession}
                                     </p>
-                                    <p className="text-2xl text-white">
+                                    <p className="text-2xl font-bold text-white">
                                       {formatPomodoroTime(pomodoroTimeLeft)}
                                     </p>
                                   </div>
@@ -831,27 +844,28 @@ const toggleCamera = async () => {
                           muted
                           playsInline
                         />
-                          {isCameraActive && (
-                            <WebcamCapture
-                              videoRef={videoRef}
-                              isAnalyzing={isAnalyzing}
-                              isCameraActive={isCameraActive}
-                              onFeaturesExtracted={handleFeaturesExtracted}
-                              onAttentionUpdate={handleAttentionUpdate}
-                              classSessionId={selectedCourse?.id ?? null}
-                            />
-                          )}
+                        
+                        {isCameraActive && (
+                          <WebcamCapture
+                            videoRef={videoRef}
+                            isAnalyzing={isAnalyzing}
+                            isCameraActive={isCameraActive}
+                            onFeaturesExtracted={handleFeaturesExtracted}
+                            onAttentionUpdate={handleAttentionUpdate}
+                            classSessionId={selectedCourse?.id ?? null}
+                          />
+                        )}
+                        
                         {!isCameraActive && (
                           <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
                             <div className="text-center text-white">
                               <CameraOff className="w-16 h-16 mx-auto mb-4 text-gray-500" />
-                              <p>Cámara desactivada</p>
+                              <p className="text-xl">Cámara desactivada</p>
                               <p className="text-sm text-gray-400 mt-2">Activa tu cámara para comenzar</p>
                             </div>
                           </div>
                         )}
                         
-                        {/* Indicador de modo simulación cuando la cámara está activa pero sin video real */}
                         {isCameraActive && !streamRef.current && (
                           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-cyan-900 to-cyan-700">
                             <div className="text-center text-white">
@@ -862,15 +876,14 @@ const toggleCamera = async () => {
                           </div>
                         )}
                         
-                        {/* Overlay de estado */}
                         {isCameraActive && isAnalyzing && !isFeaturesExtracted && (
                           <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
                             <div className="text-center text-white">
                               <Brain className="w-16 h-16 mx-auto mb-4 animate-pulse" />
-                              <p className="mb-4">Extrayendo features...</p>
+                              <p className="text-xl mb-4">Extrayendo features...</p>
                               <Progress value={extractionProgress} className="w-64 mx-auto" />
                               <p className="text-sm mt-2">{extractionProgress}%</p>
-                              <div className="mt-6 space-y-2 text-left">
+                              <div className="mt-6 space-y-2 text-left max-w-xs mx-auto">
                                 <div className="flex items-center gap-2">
                                   <Eye className={`w-4 h-4 ${extractionProgress >= 25 ? 'text-green-400' : 'text-gray-400'}`} />
                                   <span className={extractionProgress >= 25 ? 'text-green-400' : 'text-gray-400'}>
@@ -900,7 +913,6 @@ const toggleCamera = async () => {
                           </div>
                         )}
 
-                        {/* Badge cuando está listo */}
                         {isCameraActive && isFeaturesExtracted && (
                           <div className="absolute top-4 left-4">
                             <Badge className="bg-green-500">
@@ -930,8 +942,6 @@ const toggleCamera = async () => {
                           )}
                         </Button>
 
-
-
                         <Button
                           onClick={isAnalyzing ? stopAnalysis : startAnalysis}
                           variant={isFeaturesExtracted ? "secondary" : "default"}
@@ -952,7 +962,6 @@ const toggleCamera = async () => {
                         </Button>
                       </div>
 
-                      {/* Mensaje de advertencia si no hay curso */}
                       {!selectedCourse && (
                         <Alert className="mt-4 border-cyan-300 bg-cyan-50">
                           <AlertCircle className="h-4 w-4 text-cyan-600" />
@@ -964,7 +973,6 @@ const toggleCamera = async () => {
                     </CardContent>
                   </Card>
 
-                  {/* Real-time Chart */}
                   {isFeaturesExtracted && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
@@ -1017,26 +1025,23 @@ const toggleCamera = async () => {
                     </motion.div>
                   )}
 
-                  {/* Course Materials */}
                   {selectedCourse && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="mt-6"
                     >
-                      <CourseMaterials courseId={selectedCourse ? selectedCourse.id : null} />
+                      <CourseMaterials courseId={selectedCourse.id} />
                     </motion.div>
                   )}
                 </div>
 
-                {/* Right Sidebar */}
                 <div className="space-y-6">
-                  {/* Mensaje cuando no hay curso seleccionado */}
                   {!selectedCourse ? (
                     <Card className="border-2 border-cyan-300 bg-gradient-to-br from-cyan-50 to-cyan-100">
                       <CardContent className="p-6 text-center">
                         <AlertCircle className="w-12 h-12 mx-auto mb-4 text-orange-500" />
-                        <h3 className="text-gray-900 mb-2">No tienes una clase escogida</h3>
+                        <h3 className="font-semibold text-gray-900 mb-2">No tienes una clase escogida</h3>
                         <p className="text-sm text-gray-700 mb-4">
                           Para iniciar el análisis de atención, primero debes seleccionar un curso desde el Dashboard.
                         </p>
@@ -1051,7 +1056,6 @@ const toggleCamera = async () => {
                     </Card>
                   ) : (
                     <>
-                      {/* Session Info */}
                       <Card>
                         <CardHeader>
                           <CardTitle className="text-sm">Información de la Sesión</CardTitle>
@@ -1059,15 +1063,15 @@ const toggleCamera = async () => {
                         <CardContent className="space-y-3">
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Clase:</span>
-                            <span className="text-gray-900">{selectedCourse.name}</span>
+                            <span className="font-medium text-gray-900">{selectedCourse.name}</span>
                           </div>
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Profesor:</span>
-                            <span className="text-gray-900">{selectedCourse.professor}</span>
+                            <span className="font-medium text-gray-900">{selectedCourse.professor}</span>
                           </div>
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Horario:</span>
-                            <span className="text-gray-900">{selectedCourse.time}</span>
+                            <span className="font-medium text-gray-900">{selectedCourse.time}</span>
                           </div>
                           <Separator />
                           <div className="flex justify-between text-sm">
@@ -1075,18 +1079,6 @@ const toggleCamera = async () => {
                             <Badge variant={isCameraActive ? "default" : "secondary"}>
                               {isCameraActive ? "Activa" : "Inactiva"}
                             </Badge>
-                          </div>
-                          <div className="flex justify-between text-sm mt-3">
-                            <Button size="sm" onClick={async () => {
-                              if (!selectedCourse) return;
-                              try {
-                                const res = await api.get('/student/pomodoro-metrics/');
-                                const d = res.data;
-                                toast(`📊 Eventos: ${d.total_events} · Pausas auto: ${d.auto_pauses} · Tiempo efectivo: ${Math.round(d.effective_seconds/60)} min`);
-                              } catch (e) {
-                                toast.error('Error al obtener métricas');
-                              }
-                            }}>Ver métricas</Button>
                           </div>
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Features:</span>
@@ -1100,10 +1092,26 @@ const toggleCamera = async () => {
                               {isFeaturesExtracted ? "En progreso" : "No iniciado"}
                             </Badge>
                           </div>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="w-full mt-2"
+                            onClick={async () => {
+                              if (!selectedCourse) return;
+                              try {
+                                const res = await api.get('/student/pomodoro-metrics/');
+                                const d = res.data;
+                                toast(`📊 Eventos: ${d.total_events} · Pausas auto: ${d.auto_pauses} · Tiempo efectivo: ${Math.round(d.effective_seconds/60)} min`);
+                              } catch (e) {
+                                toast.error('Error al obtener métricas');
+                              }
+                            }}
+                          >
+                            Ver métricas
+                          </Button>
                         </CardContent>
                       </Card>
 
-                      {/* Attention Level Card - Solo si features están extraídos */}
                       {isFeaturesExtracted && (
                         <motion.div
                           initial={{ opacity: 0, scale: 0.95 }}
@@ -1115,7 +1123,7 @@ const toggleCamera = async () => {
                             </CardHeader>
                             <CardContent>
                               <div className="text-center">
-                                <div className={`text-5xl mb-2 ${getAttentionColor()}`}>
+                                <div className={`text-5xl font-bold mb-2 ${getAttentionColor()}`}>
                                   {attentionScore}%
                                 </div>
                                 <Badge 
@@ -1142,18 +1150,6 @@ const toggleCamera = async () => {
                         </motion.div>
                       )}
 
-                      {/* Low Attention Alert */}
-                      {showMediumAttentionAlert && isFeaturesExtracted && (
-                        <Alert className="border-yellow-400 bg-yellow-50 animate-pulse">
-                          <AlertCircle className="h-4 w-4 text-yellow-600" />
-                          <AlertDescription className="text-yellow-700">
-                            ⚠️ <strong>Distracción leve</strong>
-                            <br />
-                            Pequeño aviso: intenta recuperar la concentración
-                          </AlertDescription>
-                        </Alert>
-                      )}
-
                       {showLowAttentionAlert && isFeaturesExtracted && (
                         <Alert className="border-red-500 bg-red-50 animate-pulse">
                           <AlertCircle className="h-4 w-4 text-red-600" />
@@ -1164,6 +1160,7 @@ const toggleCamera = async () => {
                           </AlertDescription>
                         </Alert>
                       )}
+
                       {showMediumAttentionAlert && isFeaturesExtracted && (
                         <Alert className="border-yellow-400 bg-yellow-50 animate-pulse">
                           <AlertCircle className="h-4 w-4 text-yellow-600" />
@@ -1184,7 +1181,6 @@ const toggleCamera = async () => {
                     </>
                   )}
 
-                  {/* Tips Card */}
                   <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200">
                     <CardHeader>
                       <CardTitle className="text-sm">💡 Consejos</CardTitle>
@@ -1201,11 +1197,10 @@ const toggleCamera = async () => {
             </div>
           )}
 
-          {/* Stats View */}
           {currentView === "stats" && (
             <div>
               <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Estadísticas</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Estadísticas</h1>
                 <p className="text-gray-600">Tu rendimiento académico</p>
               </div>
 
@@ -1221,16 +1216,14 @@ const toggleCamera = async () => {
             </div>
           )}
 
-          {/* Report View */}
           {currentView === "report" && (
             <StudentReport onBack={() => setCurrentView("dashboard")} />
           )}
 
-          {/* Profile View */}
           {currentView === "profile" && (
             <div>
               <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Mi Perfil</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Mi Perfil</h1>
                 <p className="text-gray-600">Información de tu cuenta</p>
               </div>
 
@@ -1240,19 +1233,19 @@ const toggleCamera = async () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <label className="text-sm text-gray-600">Nombre Completo</label>
+                    <label className="text-sm font-medium text-gray-600">Nombre Completo</label>
                     <p className="text-gray-900">{user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}` : user.username) : '—'}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Email</label>
+                    <label className="text-sm font-medium text-gray-600">Email</label>
                     <p className="text-gray-900">{user ? user.email : '—'}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">ID de Usuario</label>
+                    <label className="text-sm font-medium text-gray-600">ID de Usuario</label>
                     <p className="text-gray-900">{user ? (user.user_code || `USR${String(user.id).padStart(3, '0')}`) : '—'}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Rol</label>
+                    <label className="text-sm font-medium text-gray-600">Rol</label>
                     <Badge>{user ? (user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Estudiante') : '—'}</Badge>
                   </div>
                 </CardContent>

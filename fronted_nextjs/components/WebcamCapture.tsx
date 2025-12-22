@@ -52,7 +52,7 @@ export default function WebcamCapture({
   onFeaturesExtracted,
   onAttentionUpdate,
   classSessionId,
-  modelEndpoint = "http://localhost:8000/api/predict-distractions/",  // ✅ Django ✓
+  modelEndpoint = "http://localhost:8000/api/predict-distractions/",
 }: WebcamCaptureProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
@@ -67,6 +67,14 @@ export default function WebcamCapture({
   // Throttle para API calls
   const lastModelCallRef = useRef<number>(0);
   const MODEL_THROTTLE_MS = 500;
+  
+  // Callback estable para onAttentionUpdate
+  const onAttentionUpdateRef = useRef(onAttentionUpdate);
+  
+  // Actualizar ref cuando cambia la función
+  useEffect(() => {
+    onAttentionUpdateRef.current = onAttentionUpdate;
+  }, [onAttentionUpdate]);
   
   // Índices MediaPipe
   const rightEyeIdx = [33, 159, 158, 133, 153, 145];
@@ -92,15 +100,33 @@ export default function WebcamCapture({
       if (!response.ok) throw new Error('API error');
       
       const { distraction_score, level, confidence } = await response.json();
-      onAttentionUpdate(distraction_score, level, batch.slice(-5).map(f => ({ear: f.ear, mar: f.mar})));
+      
       console.log('WebcamCapture: Calling onAttentionUpdate with (model):', distraction_score, level);
+      onAttentionUpdateRef.current(
+        distraction_score, 
+        level, 
+        batch.slice(-5).map(f => ({ear: f.ear, mar: f.mar}))
+      );
     } catch (e) {
-      console.warn('WebcamCapture: Modelo falló:', e);
+      console.warn('WebcamCapture: Modelo falló, usando fallback:', e);
+      
       // Fallback a lógica local simple
-      const fallbackScore = Math.round(batch.reduce((sum, f) => sum + (f.ear * 100 + (1 - f.mar) * 100), 0) / batch.length / 2);
-      const fallbackLevel = fallbackScore < 45 ? 'low' : fallbackScore < 70 ? 'medium' : 'high';
-      onAttentionUpdate(fallbackScore, fallbackLevel);
+      const avgEar = batch.reduce((sum, f) => sum + f.ear, 0) / batch.length;
+      const avgMar = batch.reduce((sum, f) => sum + f.mar, 0) / batch.length;
+      
+      // Lógica mejorada de fallback
+      // EAR alto (ojos abiertos) = buena atención, MAR bajo (boca cerrada) = buena atención
+      const earScore = avgEar * 100; // 0-100
+      const marScore = (1 - avgMar) * 100; // Invertido: boca cerrada = alto score
+      const fallbackScore = Math.round((earScore * 0.7 + marScore * 0.3)); // EAR tiene más peso
+      
+      const fallbackLevel: 'high' | 'medium' | 'low' = 
+        fallbackScore < 45 ? 'low' : 
+        fallbackScore < 70 ? 'medium' : 
+        'high';
+      
       console.log('WebcamCapture: Calling onAttentionUpdate with (fallback):', fallbackScore, fallbackLevel);
+      onAttentionUpdateRef.current(fallbackScore, fallbackLevel);
     }
   };
 
@@ -115,131 +141,138 @@ export default function WebcamCapture({
         return;
       }
 
-      const filesetResolver = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-      );
+      try {
+        const filesetResolver = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+        );
 
-      const faceLandmarker = await FaceLandmarker.createFromModelPath(
-        filesetResolver,
-        "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
-      );
+        const faceLandmarker = await FaceLandmarker.createFromModelPath(
+          filesetResolver,
+          "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+        );
 
-      faceLandmarker.setOptions({
-        baseOptions: { delegate: "GPU" },
-        runningMode: "VIDEO",
-        numFaces: 1,
-      });
+        faceLandmarker.setOptions({
+          baseOptions: { delegate: "GPU" },
+          runningMode: "VIDEO",
+          numFaces: 1,
+        });
 
-      if (cancelledRef.current) {
-        faceLandmarker.close();
-        return;
-      }
-
-      faceLandmarkerRef.current = faceLandmarker;
-
-      const loop = () => {
-        if (
-          cancelledRef.current ||
-          !videoRef.current ||
-          !canvasRef.current ||
-          !faceLandmarkerRef.current
-        ) {
+        if (cancelledRef.current) {
+          faceLandmarker.close();
           return;
         }
 
-        const video = videoRef.current;
-        if (video.readyState < 2) {
+        faceLandmarkerRef.current = faceLandmarker;
+
+        const loop = () => {
+          if (
+            cancelledRef.current ||
+            !videoRef.current ||
+            !canvasRef.current ||
+            !faceLandmarkerRef.current
+          ) {
+            return;
+          }
+
+          const video = videoRef.current;
+          if (video.readyState < 2) {
+            rafIdRef.current = requestAnimationFrame(loop);
+            return;
+          }
+
+          const now = performance.now();
+          if (!isAnalyzing) {
+            rafIdRef.current = requestAnimationFrame(loop);
+            return;
+          }
+
+          if (lastVideoTimeRef.current === video.currentTime) {
+            rafIdRef.current = requestAnimationFrame(loop);
+            return;
+          }
+          lastVideoTimeRef.current = video.currentTime;
+
+          const result = faceLandmarkerRef.current!.detectForVideo(video, now);
+          const canvas = canvasRef.current!;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            rafIdRef.current = requestAnimationFrame(loop);
+            return;
+          }
+
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 480;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
+            const lms = result.faceLandmarks[0] as LM[];
+            
+            // Dibujado debug (opcional)
+            const toPixel = (p: LM) => ({ x: p.x * canvas.width, y: p.y * canvas.height });
+            const drawPoints = (indices: number[], color = "#00FF00") => {
+              ctx.fillStyle = color;
+              indices.forEach((i) => {
+                const p = toPixel(lms[i]);
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+              });
+            };
+            
+            drawPoints(rightEyeIdx, "#00E676");
+            drawPoints(leftEyeIdx, "#00E676");
+            drawPoints(mouthIdx, "#FF6B35");
+
+            // Cálculos EAR/MAR
+            const earRight = computeEAR(lms, rightEyeIdx);
+            const earLeft = computeEAR(lms, leftEyeIdx);
+            const ear = (earRight + earLeft) / 2.0;
+            const mar = computeMAR(lms, mouthIdx);
+
+            // Agregar al buffer
+            featuresBufferRef.current.push({ ear, mar, timestamp: now });
+            if (featuresBufferRef.current.length > 30) {
+              featuresBufferRef.current.shift();
+            }
+
+            // Notificar features ready (primera vez)
+            if (!featuresReadyRef.current) {
+              featuresReadyRef.current = true;
+              onFeaturesExtracted(true);
+              console.log('✅ Features ready - detection started');
+            }
+
+            // Enviar al modelo si hay suficientes datos (15+ frames)
+            if (featuresBufferRef.current.length >= 15) {
+              sendToModel(featuresBufferRef.current.slice());
+            }
+
+          } else {
+            // Sin rostro detectado: features bajas
+            console.log('⚠️ No face detected');
+            featuresBufferRef.current.push({ ear: 0.1, mar: 0.8, timestamp: now });
+            if (featuresBufferRef.current.length > 30) {
+              featuresBufferRef.current.shift();
+            }
+            
+            if (featuresBufferRef.current.length >= 15) {
+              sendToModel(featuresBufferRef.current.slice());
+            }
+          }
+
           rafIdRef.current = requestAnimationFrame(loop);
-          return;
-        }
-
-        const now = performance.now();
-        if (!isAnalyzing) {
-          rafIdRef.current = requestAnimationFrame(loop);
-          return;
-        }
-
-        if (lastVideoTimeRef.current === video.currentTime) {
-          rafIdRef.current = requestAnimationFrame(loop);
-          return;
-        }
-        lastVideoTimeRef.current = video.currentTime;
-
-        const result = faceLandmarkerRef.current!.detectForVideo(video, now);
-        const canvas = canvasRef.current!;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          rafIdRef.current = requestAnimationFrame(loop);
-          return;
-        }
-
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
-          const lms = result.faceLandmarks[0] as LM[];
-          
-          // Dibujado debug (opcional)
-          const toPixel = (p: LM) => ({ x: p.x * canvas.width, y: p.y * canvas.height });
-          const drawPoints = (indices: number[], color = "#00FF00") => {
-            ctx.fillStyle = color;
-            indices.forEach((i) => {
-              const p = toPixel(lms[i]);
-              ctx.beginPath();
-              ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-              ctx.fill();
-            });
-          };
-          
-          drawPoints(rightEyeIdx, "#00E676");
-          drawPoints(leftEyeIdx, "#00E676");
-          drawPoints(mouthIdx, "#FF6B35");
-
-          // Cálculos EAR/MAR
-          const earRight = computeEAR(lms, rightEyeIdx);
-          const earLeft = computeEAR(lms, leftEyeIdx);
-          const ear = (earRight + earLeft) / 2.0;
-          const mar = computeMAR(lms, mouthIdx);
-
-          // Agregar al buffer
-          featuresBufferRef.current.push({ ear, mar, timestamp: now });
-          if (featuresBufferRef.current.length > 30) {
-            featuresBufferRef.current.shift();
-          }
-
-          // Notificar features ready (primera vez)
-          if (!featuresReadyRef.current) {
-            featuresReadyRef.current = true;
-            onFeaturesExtracted(true);
-          }
-
-          // Enviar al modelo si hay suficientes datos (15+ frames)
-          if (featuresBufferRef.current.length >= 15) {
-            sendToModel(featuresBufferRef.current.slice());
-          }
-
-        } else {
-          // Sin rostro: features bajas
-          featuresBufferRef.current.push({ ear: 0.1, mar: 0.8, timestamp: now });
-          if (featuresBufferRef.current.length > 30) {
-            featuresBufferRef.current.shift();
-          }
-          
-          if (featuresBufferRef.current.length >= 15) {
-            sendToModel(featuresBufferRef.current.slice());
-          }
-        }
+        };
 
         rafIdRef.current = requestAnimationFrame(loop);
-      };
-
-      rafIdRef.current = requestAnimationFrame(loop);
+      } catch (error) {
+        console.error('Error initializing FaceLandmarker:', error);
+      }
     }
 
     setup();
 
     return () => {
+      console.log('🧹 WebcamCapture cleanup');
       cancelledRef.current = true;
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
@@ -253,7 +286,8 @@ export default function WebcamCapture({
       featuresBufferRef.current = [];
       lastVideoTimeRef.current = -1;
     };
-  }, [isCameraActive, videoRef, isAnalyzing, onFeaturesExtracted, onAttentionUpdate, classSessionId, modelEndpoint]);
+  }, [isCameraActive, isAnalyzing, videoRef, onFeaturesExtracted, classSessionId, modelEndpoint]);
+  // ⚠️ NOTA: onAttentionUpdate NO está en las dependencias - usamos ref para evitar re-montajes
 
   return (
     <canvas
