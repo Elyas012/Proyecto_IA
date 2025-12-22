@@ -51,6 +51,17 @@ _model_lock = threading.Lock()
 model = None
 scaler = None
 
+# 🆗 EMA para suavizar (después de model/scaler)
+_ema_lock = threading.Lock()
+current_ema = 50.0  # Inicial 50%
+alpha = 0.3  # Suavidad (0.1=lento, 0.5=rápido)
+
+def update_ema(new_score):
+    """Exponential Moving Average"""
+    global current_ema
+    with _ema_lock:
+        current_ema = alpha * new_score + (1 - alpha) * current_ema
+        return current_ema
 
 def ensure_model_loaded():
     """Singleton thread-safe - RETORNA model directamente"""
@@ -103,20 +114,38 @@ def predict_distractions(request):
         
         # 🆗 LSTM PRIMERO (si disponible)
         if ensure_model_loaded() and model is not None and scaler is not None:
-            print("🟢 USANDO LSTM!")
             try:
-                features_scaled = scaler.transform(features_array)
-                features_reshaped = features_scaled.reshape(10, 15, 2)
-                distraction_score = model.predict(features_reshaped, verbose=0)[0][0] * 100
-                level = "high" if distraction_score >= 70 else "medium" if distraction_score >= 45 else "low"
+                print(f"📏 Features recibidas: {len(features_array)} frames")
                 
+                # Pad/Truncate
+                if len(features_array) < 15:
+                    padding = np.zeros((15 - len(features_array), 2))
+                    features_array = np.vstack([features_array, padding])
+                else:
+                    features_array = features_array[:15]
+                
+                features_scaled = scaler.transform(features_array)
+                features_reshaped = features_scaled.reshape(1, 15, 2)
+                
+                # 🆗 INVERSIÓN: Distracción → ATENCIÓN
+                raw_score = model.predict(features_reshaped, verbose=0)[0][0]
+                attention_score_raw = (1.0 - raw_score) * 100
+
+                # 🆗 SUAVIZAR con EMA
+                attention_score = update_ema(attention_score_raw)
+
+                print(f"🤖 LSTM raw: {attention_score_raw:.1f}% → EMA: {attention_score:.1f}%")
+
+                level = "low" if attention_score <= 30 else "medium" if attention_score <= 70 else "high"
+
                 return JsonResponse({
-                    'distraction_score': round(float(distraction_score), 1),
+                    'distraction_score': round(float(attention_score), 1),
                     'level': level,
-                    'model_used': 'lstm_v1'  # 🎉 IA REAL
+                    'model_used': 'lstm_v1_ema'
                 })
             except Exception as lstm_error:
                 print(f"LSTM predict error: {lstm_error}")
+
         
         # ✅ FALLBACK (si LSTM falla)
         avg_ear = np.mean(features_array[:, 0])
@@ -260,13 +289,17 @@ def current_user(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def record_attention(request):
-    """Record attention score for a student in a class."""
     class_session_id = request.data.get('class_session_id')
-    attention_score = request.data.get('attention_score')
+    
+    # 🆗 ACEPTAR AMBOS NOMBRES (compatibilidad)
+    score = (request.data.get('distraction_score') or 
+             request.data.get('attention_score') or 
+             request.data.get('attention_score', 50))
+    
     duration_seconds = request.data.get('duration_seconds')
     
-    if not class_session_id or attention_score is None:
-        return Response({'detail': 'class_session_id and attention_score required'}, status=status.HTTP_400_BAD_REQUEST)
+    if not class_session_id or score is None:
+        return Response({'detail': 'class_session_id and score required'}, status=status.HTTP_400_BAD_REQUEST)
     
     try:
         class_session = ClassSession.objects.get(id=class_session_id)
@@ -274,23 +307,21 @@ def record_attention(request):
         return Response({'detail': 'Class session not found'}, status=status.HTTP_404_NOT_FOUND)
     
     # Determine attention level
-    if attention_score >= 80:
+    if float(score) >= 80:
         level = 'high'
-    elif attention_score >= 50:
+    elif float(score) >= 50:
         level = 'medium'
     else:
         level = 'low'
     
-    # DESPUÉS:
     record = AttentionRecord.objects.create(
         student=request.user,
         class_session=class_session,
-        attention_score=attention_score,
+        attention_score=float(score),  # ← float() por si acaso
         attention_level=level,
-        raw_features=request.data.get('raw_features')  # 🆕 NUEVO
+        raw_features=request.data.get('raw_features')
     )
     
-    # Optional: record effective focused duration in seconds
     try:
         if duration_seconds is not None:
             record.duration_seconds = int(duration_seconds)
@@ -299,6 +330,7 @@ def record_attention(request):
         pass
     
     return Response(AttentionRecordSerializer(record).data, status=status.HTTP_201_CREATED)
+
 
 
 # Feature recording endpoint
