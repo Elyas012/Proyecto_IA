@@ -72,9 +72,17 @@ class StudentCourseSerializer(serializers.ModelSerializer):
 
 
 class CourseMaterialSerializer(serializers.ModelSerializer):
+    # ✅ CAMBIO: Campo calculado para saber si tiene quiz
+    has_quiz = serializers.SerializerMethodField()
+
     class Meta:
         model = CourseMaterial
-        fields = ['id', 'course', 'title', 'description', 'file', 'file_type', 'is_active', 'uploaded_at']
+        # ✅ CAMBIO: Agregado 'has_quiz' a la lista
+        fields = ['id', 'course', 'title', 'description', 'file', 'file_type', 'is_active', 'uploaded_at', 'has_quiz']
+
+    def get_has_quiz(self, obj):
+        """Devuelve True si existe un quiz generado para este material"""
+        return hasattr(obj, 'generated_quiz')
 
     def create(self, validated_data):
         file = validated_data.get('file')
@@ -82,10 +90,10 @@ class CourseMaterialSerializer(serializers.ModelSerializer):
             file_name = file.name.lower()
             if file_name.endswith('.pdf'):
                 validated_data['file_type'] = 'pdf'
-            elif file_name.endswith(('.mp4', '.mov', '.avi', '.wmv')): # Added .wmv
+            elif file_name.endswith(('.mp4', '.mov', '.avi', '.wmv')): 
                 validated_data['file_type'] = 'video'
             else:
-                validated_data['file_type'] = 'other' # Ensure other types are explicitly set
+                validated_data['file_type'] = 'other' 
         return super().create(validated_data)
 
     def to_representation(self, instance):

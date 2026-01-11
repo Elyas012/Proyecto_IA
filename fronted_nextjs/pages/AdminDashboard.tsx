@@ -27,7 +27,7 @@ import {
   AlertCircle,
   Shield
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell , Legend} from "recharts";
 import { toast } from "sonner"; // Opcional: si usas sonner para notificaciones, si no, usa alert o console
 
 type ViewType = "overview" | "users" | "sessions" | "stats" | "config";
@@ -683,33 +683,64 @@ const filteredUsers = users.filter((user) =>
 
             {/* Estadísticas */}
             {currentView === "stats" && (
-              <div>
+              <div className="animate-in zoom-in-95 duration-500">
                 <div className="mb-8">
-                  <h2 className="text-gray-900 mb-2">Estadísticas Globales</h2>
-                  <p className="text-gray-600">Análisis detallado del sistema</p>
+                  <h2 className="text-gray-900 mb-2">Métricas del Sistema</h2>
+                  <p className="text-gray-600">Salud de la plataforma y distribución de usuarios</p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Distribución de Roles Real */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Uso del Sistema</CardTitle>
-                      <CardDescription>Próximamente</CardDescription>
+                      <CardTitle>Composición de Usuarios</CardTitle>
+                      <CardDescription>Distribución actual de roles en la plataforma</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <p className="text-gray-600">
-                        Gráficos de uso diario, semanal y mensual del sistema
-                      </p>
+                    <CardContent className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: 'Estudiantes', value: users.filter(u => u.role === 'Student').length, fill: '#ff6b35' },
+                              { name: 'Docentes', value: users.filter(u => u.role === 'Teacher').length, fill: '#3b82f6' },
+                              { name: 'Admins', value: users.filter(u => u.role === 'Admin').length, fill: '#64748b' }
+                            ]}
+                            cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" label
+                          >
+                            {roleDistribution.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend verticalAlign="bottom"/>
+                        </PieChart>
+                      </ResponsiveContainer>
                     </CardContent>
                   </Card>
 
+                  {/* Carga del Sistema (Sesiones vs Cursos) */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Rendimiento del Sistema</CardTitle>
-                      <CardDescription>Próximamente</CardDescription>
+                      <CardTitle>Carga Actual del Sistema</CardTitle>
+                      <CardDescription>Sesiones activas respecto al total de cursos</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <p className="text-gray-600">
-                        Métricas de rendimiento y tiempos de respuesta
+                    <CardContent className="h-[300px] flex flex-col justify-center items-center">
+                      <div className="relative w-40 h-40 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90">
+                          <circle cx="80" cy="80" r="70" stroke="#e5e7eb" strokeWidth="10" fill="transparent" />
+                          <circle 
+                            cx="80" cy="80" r="70" stroke="#f97316" strokeWidth="10" fill="transparent"
+                            strokeDasharray={440}
+                            strokeDashoffset={440 - (440 * (activeSessions.length / (courses.length || 1)))}
+                            className="transition-all duration-1000 ease-out"
+                          />
+                        </svg>
+                        <div className="absolute text-3xl font-bold text-gray-800">
+                          {Math.round((activeSessions.length / (courses.length || 1)) * 100)}%
+                        </div>
+                      </div>
+                      <p className="mt-4 text-gray-500 text-center">
+                        {activeSessions.length} sesiones activas de {courses.length} cursos registrados.
                       </p>
                     </CardContent>
                   </Card>

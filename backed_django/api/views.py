@@ -34,7 +34,10 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.permissions import IsAuthenticated, BasePermission, AllowAny  # 🆕 +AllowAny
-
+import google.generativeai as genai
+from pypdf import PdfReader
+import json
+from .models import Quiz, Question, StudentQuizAttempt
 
 
 
@@ -251,6 +254,7 @@ def student_courses(request):
         for session in sessions:
             courses.append({
                 'id': session.id,
+                'course_id': session.course.id,  # <--- AGREGAR ESTA LÍNEA
                 'name': session.course.name,
                 'professor': f"{session.teacher.first_name} {session.teacher.last_name}".strip() or session.teacher.username,
                 'time': str(session.time),
@@ -869,3 +873,164 @@ def admin_enroll_student(request):
         status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
     )
 
+# --- AGREGAR ESTAS NUEVAS VISTAS ---
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsTeacher])
+def generate_quiz_ai(request):
+    """
+    Genera un Quiz de 10 preguntas basado en un material subido.
+    """
+    material_id = request.data.get('material_id')
+    material = get_object_or_404(CourseMaterial, id=material_id)
+    
+    # 1. Extraer texto del archivo (Soporte PDF y Texto)
+    text_content = ""
+    try:
+        if material.file.name.lower().endswith('.pdf'):
+            reader = PdfReader(material.file.path)
+            # Leemos máximo 5 páginas para no saturar el contexto
+            for page in reader.pages[:5]: 
+                text_content += page.extract_text() or ""
+        else:
+            # Intentar leer como texto
+            with open(material.file.path, 'r', encoding='utf-8', errors='ignore') as f:
+                text_content = f.read()
+    except Exception as e:
+        return Response({'detail': f'Error leyendo archivo: {str(e)}'}, status=400)
+
+    if len(text_content) < 50:
+        return Response({'detail': 'El archivo contiene muy poco texto para generar un examen.'}, status=400)
+
+    # 2. Configurar y Llamar a Gemini
+    # ⚠️ REEMPLAZA CON TU API KEY REAL O USA VARIABLES DE ENTORNO
+    GEMINI_API_KEY = "AIzaSyAYoq5DXWe1xGd-u080wVXjZUrlVSnH1D0" 
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel('models/gemini-flash-lite-latest')
+    
+    prompt = f"""
+    Eres un profesor experto. Basado en el siguiente texto educativo, genera un examen de 10 preguntas de selección múltiple.
+    El formato de salida DEBE ser estrictamente un JSON válido (sin markdown) con esta estructura:
+    [
+      {{
+        "question": "¿Enunciado de la pregunta?",
+        "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
+        "correct_index": 0,
+        "explanation": "Breve explicación de por qué es correcta"
+      }}
+    ]
+    
+    Texto del material:
+    {text_content[:10000]} 
+    """ 
+    
+    try:
+        response = model.generate_content(prompt)
+        # Limpieza por si Gemini devuelve bloques de código markdown
+        clean_json = response.text.replace('```json', '').replace('```', '').strip()
+        quiz_data = json.loads(clean_json)
+        
+        # 3. Guardar en Base de Datos
+        # Borrar quiz anterior si existe para este material
+        Quiz.objects.filter(course_material=material).delete()
+        
+        quiz = Quiz.objects.create(
+            course_material=material,
+            title=f"Evaluación: {material.title}"
+        )
+        
+        for q in quiz_data:
+            Question.objects.create(
+                quiz=quiz,
+                text=q['question'],
+                options=q['options'],
+                correct_answer=q['correct_index'],
+                explanation=q.get('explanation', '')
+            )
+            
+        return Response({'detail': 'Quiz generado exitosamente', 'quiz_id': quiz.id})
+        
+    except Exception as e:
+        return Response({'detail': f'Error generando quiz con IA: {str(e)}'}, status=500)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_quiz(request, material_id):
+    """Obtiene el quiz asociado a un material para que el estudiante lo rinda."""
+    material = get_object_or_404(CourseMaterial, id=material_id)
+    try:
+        quiz = material.generated_quiz
+    except Quiz.DoesNotExist:
+        return Response({'detail': 'No hay evaluación disponible para este material'}, status=404)
+        
+    questions = quiz.questions.all()
+    data = {
+        'quiz_id': quiz.id,
+        'title': quiz.title,
+        'questions': [
+            {
+                'id': q.id,
+                'text': q.text,
+                'options': q.options
+            } for q in questions
+        ]
+    }
+    return Response(data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_quiz(request):
+    """
+    Califica el quiz, guarda la nota y pide recomendación a Gemini.
+    """
+    quiz_id = request.data.get('quiz_id')
+    answers = request.data.get('answers') # Diccionario { "question_id": index_respuesta }
+    
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    questions = quiz.questions.all()
+    
+    score_count = 0
+    mistakes = []
+    
+    for question in questions:
+        user_answer = answers.get(str(question.id))
+        if user_answer is not None and int(user_answer) == question.correct_answer:
+            score_count += 1
+        else:
+            mistakes.append(f"- Tema: {question.text}. Correcta: {question.options[question.correct_answer]}")
+            
+    final_score = (score_count / len(questions)) * 10
+    
+    # 4. Generar Feedback con Gemini
+    feedback = "¡Excelente trabajo! Has dominado el tema."
+    if mistakes:
+        GEMINI_API_KEY = "AIzaSyAYoq5DXWe1xGd-u080wVXjZUrlVSnH1D0"
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('models/gemini-flash-lite-latest')
+        
+        error_context = "\n".join(mistakes[:5]) # Mandamos los primeros 5 errores
+        prompt = f"""
+        Un estudiante sacó {final_score}/10 en una prueba.
+        Se equivocó en:
+        {error_context}
+        
+        Dame una recomendación corta (max 3 líneas), motivadora y directa para que mejore en esos temas específicos. Háblale de "tú".
+        """
+        try:
+            resp = model.generate_content(prompt)
+            feedback = resp.text
+        except:
+            feedback = "Revisa los temas en los que fallaste para reforzar tu aprendizaje."
+
+    StudentQuizAttempt.objects.create(
+        student=request.user,
+        quiz=quiz,
+        score=final_score,
+        feedback=feedback
+    )
+    
+    return Response({
+        'score': final_score,
+        'feedback': feedback,
+        'passed': final_score >= 7
+    })

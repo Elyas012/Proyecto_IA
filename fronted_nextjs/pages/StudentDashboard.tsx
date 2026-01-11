@@ -31,6 +31,7 @@ import WebcamCapture from "../components/WebcamCapture";
 import CourseMaterials from "../components/CourseMaterials";
 import { Toaster, toast } from 'sonner';
 import { motion } from "framer-motion";
+import { QuizModal } from "../components/QuizModal";
 
 type ViewType = "dashboard" | "classes" | "stats" | "profile" | "report";
 type AttentionLevel = "high" | "medium" | "low";
@@ -43,6 +44,7 @@ interface AttentionData {
 
 interface Course {
   id: string;
+  course_id: number; // <--- AGREGAR ESTO
   name: string;
   professor: string;
   time: string;
@@ -86,6 +88,10 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [isFeaturesExtracted, setIsFeaturesExtracted] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState(0);
   const isFeaturesExtractedRef = useRef<boolean>(false);
+
+  // Estados para Quiz con IA
+  const [isQuizOpen, setIsQuizOpen] = useState(false);
+  const [quizMaterialId, setQuizMaterialId] = useState<number | null>(null);
 
   useEffect(() => {
     isFeaturesExtractedRef.current = isFeaturesExtracted;
@@ -1203,6 +1209,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Estadísticas</h1>
                 <p className="text-gray-600">Tu rendimiento académico</p>
               </div>
+            )
 
               <Card>
                 <CardHeader>
@@ -1254,6 +1261,13 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
           )}
         </main>
       </div>
+      
+      {/* COMPONENTE MODAL PARA LA EVALUACIÓN CON IA */}
+      <QuizModal 
+        isOpen={isQuizOpen} 
+        onClose={() => setIsQuizOpen(false)} 
+        materialId={quizMaterialId} 
+      />
     </div>
   );
 }

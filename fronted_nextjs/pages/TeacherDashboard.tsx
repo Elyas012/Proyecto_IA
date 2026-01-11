@@ -580,34 +580,54 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
 
           {/* Stats View */}
           {currentView === "stats" && (
-            <div>
+            <div className="animate-in slide-in-from-bottom-5 duration-500">
               <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Estadísticas Avanzadas</h1>
-                <p className="text-gray-600">Análisis detallado del rendimiento</p>
+                <h1 className="text-gray-900 mb-2">Análisis del Grupo</h1>
+                <p className="text-gray-600">Rendimiento comparativo de los estudiantes</p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {/* Ranking de Atención */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Análisis por Período</CardTitle>
-                    <CardDescription>Próximamente</CardDescription>
+                    <CardTitle>Ranking de Atención</CardTitle>
+                    <CardDescription>Estudiantes con mejor promedio</CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600">
-                      Gráficos comparativos entre diferentes períodos académicos
-                    </p>
+                  <CardContent className="h-[350px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart 
+                        layout="vertical" 
+                        data={[...students].sort((a,b) => b.averageAttention - a.averageAttention).slice(0, 7)}
+                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" domain={[0, 100]} />
+                        <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 11}} />
+                        <Tooltip />
+                        <Bar dataKey="averageAttention" fill="#3b82f6" radius={[0, 4, 4, 0]} name="% Atención" />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </CardContent>
                 </Card>
 
+                {/* Relación Asistencia vs Atención */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Correlaciones</CardTitle>
-                    <CardDescription>Próximamente</CardDescription>
+                    <CardTitle>Asistencia vs. Atención</CardTitle>
+                    <CardDescription>Correlación entre participación y enfoque</CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600">
-                      Relación entre atención y rendimiento académico
-                    </p>
+                  <CardContent className="h-[350px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={[...students].sort((a,b) => a.sessionsAttended - b.sessionsAttended)}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="sessionsAttended" name="Sesiones" />
+                        <YAxis domain={[0, 100]} name="% Atención" />
+                        <Tooltip labelFormatter={(v) => `Sesiones: ${v}`} />
+                        <Legend />
+                        <Line type="monotone" dataKey="averageAttention" stroke="#ff6b35" strokeWidth={2} dot={{r:4}} name="Atención Promedio" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                    <p className="text-xs text-center mt-2 text-gray-500">Eje X: Clases Asistidas | Eje Y: % Atención</p>
                   </CardContent>
                 </Card>
               </div>

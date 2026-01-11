@@ -206,3 +206,34 @@ class CourseMaterial(models.Model):
 
     def __str__(self):
         return f"{self.course.code} - {self.title}"
+# --- AGREGAR AL FINAL DE api/models.py ---
+
+# --- AGREGAR AL FINAL DE api/models.py ---
+
+class Quiz(models.Model):
+    course_material = models.OneToOneField(CourseMaterial, on_delete=models.CASCADE, related_name='generated_quiz')
+    title = models.CharField(max_length=255)
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Quiz para {self.course_material.title}"
+
+class Question(models.Model):
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
+    text = models.TextField()
+    options = models.JSONField()  # Guardará una lista: ["A) Opción 1", "B) Opción 2", ...]
+    correct_answer = models.IntegerField()  # Índice de la respuesta correcta (0, 1, 2, 3)
+    explanation = models.TextField(blank=True)
+
+    def __str__(self):
+        return self.text[:50]
+
+class StudentQuizAttempt(models.Model):
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='quiz_attempts')
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
+    score = models.FloatField() # Nota sobre 10
+    feedback = models.TextField(blank=True) # Recomendación generada por Gemini
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.student.username} - {self.quiz.title} - {self.score}"

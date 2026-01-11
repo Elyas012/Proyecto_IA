@@ -31,7 +31,9 @@ urlpatterns = router.urls + [
     path('teacher/student-courses/', views.teacher_student_courses),
     path("admin/assign-teacher/", views.admin_assign_teacher, name="admin-assign-teacher"),
     path("admin/enroll-student/", views.admin_enroll_student, name="admin-enroll-student"),
-    
+    path('teacher/generate-quiz/', views.generate_quiz_ai),
+    path('student/quiz/<int:material_id>/', views.get_quiz),
+    path('student/submit-quiz/', views.submit_quiz),
     # ENDPOINT LSTM 
     path('predict-distractions/', predict_distractions, name='predict-distractions'),
 ]

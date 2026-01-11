@@ -14,7 +14,8 @@
     "jsx": "react-jsx",
     "incremental": true,
     "paths": {
-      "matias/*": ["./*"]
+      "matias/*": ["./*"],
+      "@/*": ["./*"] 
     }
   },
   "include": [
