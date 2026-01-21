@@ -1,60 +1,62 @@
+import os
+import json
+import threading
+import numpy as np
+import tensorflow as tf
+import joblib
+from pypdf import PdfReader
+
+# Imports de Django y REST Framework
+from django.conf import settings
+from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.db.models import Avg, Count
+from django.db.models.functions import ExtractHour
+
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.permissions import IsAuthenticated
-from django.contrib.auth import authenticate, get_user_model
-from django.utils import timezone
-from .models import Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile, CourseMaterial, PomodoroSession, PomodoroEvent
-from .serializers import (MessageSerializer, CourseSerializer, ClassSessionSerializer, 
-                         StudentCourseSerializer, UserSerializer, AttentionRecordSerializer, FeatureRecordSerializer,
-                         CourseMaterialSerializer)
-from .models import FeatureRecord
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from .models import Course, ClassSession, StudentCourse, UserProfile
-from .serializers import CourseSerializer, ClassSessionSerializer, StudentCourseSerializer, UserSerializer
-from django.contrib.auth.models import User
-from django.shortcuts import get_object_or_404
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, BasePermission
-from rest_framework import status
-from django.contrib.auth.models import User
-from .models import Course, ClassSession, UserProfile
-from .serializers import ClassSessionSerializer
-from .models import StudentCourse
-from .serializers import StudentCourseSerializer
-# 🆕 NUEVO: Para LSTM (AGREGAR DESPUÉS DE TUS IMPORTS)
-import numpy as np
-import tensorflow as tf
-import joblib
-import os
-from django.conf import settings
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework.permissions import IsAuthenticated, BasePermission, AllowAny  # 🆕 +AllowAny
-import google.generativeai as genai
-from pypdf import PdfReader
-import json
-from .models import Quiz, Question, StudentQuizAttempt
+from rest_framework.permissions import IsAuthenticated, BasePermission, AllowAny
 
+# NUEVA LIBRERÍA DE GOOGLE
+from google import genai
+from google.genai import types
 
-
-
+# Imports de tus modelos y serializadores locales
+from .models import (
+    Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile, 
+    CourseMaterial, PomodoroSession, PomodoroEvent, FeatureRecord, 
+    Quiz, Question, StudentQuizAttempt
+)
+from .serializers import (
+    MessageSerializer, CourseSerializer, ClassSessionSerializer, 
+    StudentCourseSerializer, UserSerializer, AttentionRecordSerializer, 
+    FeatureRecordSerializer, CourseMaterialSerializer
+)
 
 User = get_user_model()
 
-# 🆕 NUEVO: Cargar modelo LSTM globalmente
+# ==========================================
+# CONFIGURACIÓN GLOBAL (MODELOS IA & VARIABLES)
+# ==========================================
+
+# ⚠️ PEGA TU API KEY AQUÍ O ÚSALA DESDE VARIABLES DE ENTORNO
+GEMINI_API_KEY = "kEY-AQUI"
+
 MODEL_PATH = os.path.join(settings.BASE_DIR, 'api', 'model_lstm_distractions_FIXED.h5')
 SCALER_PATH = os.path.join(settings.BASE_DIR, 'api', 'scaler.pkl')
 
-import threading
 _model_lock = threading.Lock()
 model = None
 scaler = None
 
-# 🆗 EMA para suavizar (después de model/scaler)
+# EMA para suavizar (después de model/scaler)
 _ema_lock = threading.Lock()
 current_ema = 50.0  # Inicial 50%
 alpha = 0.3  # Suavidad (0.1=lento, 0.5=rápido)
@@ -86,28 +88,27 @@ def ensure_model_loaded():
                 
                 from sklearn.preprocessing import StandardScaler
                 scaler = StandardScaler()
+                # Dummy fit para inicializar, idealmente cargar el scaler.pkl real si existe
                 dummy_data = np.array([[0.28, 0.25]] * 30).reshape(-1, 2)
                 scaler.fit(dummy_data)
                 
                 print("🎉 ✅ LSTM CARGADO GLOBAL!")
-                print(f"🔍 VERIFICACIÓN: model={model is not None}, scaler={scaler is not None}")
                 
             except Exception as e:
-                print(f"💥 ERROR: {e}")
+                print(f"💥 ERROR CARGANDO LSTM: {e}")
                 model = None
                 scaler = None
         
-        print(f"🔍 RETORNANDO: model={model is not None}")
         return model is not None
 
+# ==========================================
+# VISTAS DE PREDICCIÓN (LSTM)
+# ==========================================
 
-
-# 🆕 NUEVO ENDPOINT: Para React
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def predict_distractions(request):
-    # 🆗 SINGLETON CHECK
     lstm_available = ensure_model_loaded()
     
     try:
@@ -118,8 +119,6 @@ def predict_distractions(request):
         # 🆗 LSTM PRIMERO (si disponible)
         if ensure_model_loaded() and model is not None and scaler is not None:
             try:
-                print(f"📏 Features recibidas: {len(features_array)} frames")
-                
                 # Pad/Truncate
                 if len(features_array) < 15:
                     padding = np.zeros((15 - len(features_array), 2))
@@ -137,8 +136,6 @@ def predict_distractions(request):
                 # 🆗 SUAVIZAR con EMA
                 attention_score = update_ema(attention_score_raw)
 
-                print(f"🤖 LSTM raw: {attention_score_raw:.1f}% → EMA: {attention_score:.1f}%")
-
                 level = "low" if attention_score <= 30 else "medium" if attention_score <= 70 else "high"
 
                 return JsonResponse({
@@ -149,7 +146,6 @@ def predict_distractions(request):
             except Exception as lstm_error:
                 print(f"LSTM predict error: {lstm_error}")
 
-        
         # ✅ FALLBACK (si LSTM falla)
         avg_ear = np.mean(features_array[:, 0])
         avg_mar = np.mean(features_array[:, 1])
@@ -164,13 +160,15 @@ def predict_distractions(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+# ==========================================
+# AUTH VIEWS
+# ==========================================
+
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
 
-
 class LoginView(APIView):
-    """Simple login view that returns a token on successful authentication."""
     permission_classes = []
 
     def post(self, request):
@@ -179,10 +177,8 @@ class LoginView(APIView):
         if not email or not password:
             return Response({'detail': 'Email and password required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Try to authenticate — assumes User.email is used for login or username fallback
         user = authenticate(request, username=email, password=password)
         if user is None:
-            # Try authenticating by username if email auth not configured
             try:
                 user_obj = User.objects.filter(email=email).first()
                 if user_obj:
@@ -202,9 +198,7 @@ class LoginView(APIView):
             pass
         return Response({'token': token.key, 'user': {'id': user.id, 'username': getattr(user, 'username', ''), 'email': getattr(user, 'email', ''), 'role': role}})
 
-
 class RegisterView(APIView):
-    """Simple registration view that creates a user with email and password."""
     permission_classes = []
 
     def post(self, request):
@@ -219,42 +213,37 @@ class RegisterView(APIView):
         if User.objects.filter(email=email).exists():
             return Response({'detail': 'User with this email already exists'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create user — if your User model requires username, use email as username
         username = email.split('@')[0]
         user = User.objects.create_user(username=username, email=email, password=password)
-        # Optionally save full name or custom fields if present
         if full_name:
             user.first_name = full_name
             user.save()
 
-        # Determine role from user_id prefix
         role = 'student'
         if user_id.startswith('DOC'):
             role = 'teacher'
         elif user_id.startswith('ADM'):
             role = 'admin'
 
-        # Create user profile
         UserProfile.objects.create(user=user, role=role, user_code=user_id)
-
         token, created = Token.objects.get_or_create(user=user)
         return Response({'token': token.key, 'user': {'id': user.id, 'username': user.username, 'email': user.email, 'role': role}}, status=status.HTTP_201_CREATED)
 
+# ==========================================
+# STUDENT VIEWS
+# ==========================================
 
-# Student endpoints
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def student_courses(request):
-    """Get courses enrolled by the authenticated student."""
     enrollments = StudentCourse.objects.filter(student=request.user)
     courses = []
     for enrollment in enrollments:
-        # Get upcoming and active sessions for this course
         sessions = ClassSession.objects.filter(course=enrollment.course, status__in=['active', 'upcoming']).order_by('date', 'time')
         for session in sessions:
             courses.append({
                 'id': session.id,
-                'course_id': session.course.id,  # <--- AGREGAR ESTA LÍNEA
+                'course_id': session.course.id,
                 'name': session.course.name,
                 'professor': f"{session.teacher.first_name} {session.teacher.last_name}".strip() or session.teacher.username,
                 'time': str(session.time),
@@ -264,11 +253,9 @@ def student_courses(request):
             })
     return Response(courses)
 
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def current_user(request):
-    """Return basic profile info for the authenticated user."""
     user = request.user
     role = 'student'
     user_code = ''
@@ -289,17 +276,13 @@ def current_user(request):
         'user_code': user_code,
     })
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def record_attention(request):
     class_session_id = request.data.get('class_session_id')
-    
-    # 🆗 ACEPTAR AMBOS NOMBRES (compatibilidad)
     score = (request.data.get('distraction_score') or 
              request.data.get('attention_score') or 
              request.data.get('attention_score', 50))
-    
     duration_seconds = request.data.get('duration_seconds')
     
     if not class_session_id or score is None:
@@ -310,7 +293,6 @@ def record_attention(request):
     except ClassSession.DoesNotExist:
         return Response({'detail': 'Class session not found'}, status=status.HTTP_404_NOT_FOUND)
     
-    # Determine attention level
     if float(score) >= 80:
         level = 'high'
     elif float(score) >= 50:
@@ -321,7 +303,7 @@ def record_attention(request):
     record = AttentionRecord.objects.create(
         student=request.user,
         class_session=class_session,
-        attention_score=float(score),  # ← float() por si acaso
+        attention_score=float(score),
         attention_level=level,
         raw_features=request.data.get('raw_features')
     )
@@ -335,16 +317,12 @@ def record_attention(request):
     
     return Response(AttentionRecordSerializer(record).data, status=status.HTTP_201_CREATED)
 
-
-
-# Feature recording endpoint
 @api_view(['POST', 'GET'])
 @permission_classes([IsAuthenticated])
 def feature_records(request):
     if request.method == 'POST':
         class_session_id = request.data.get('class_session_id')
         features = request.data.get('features')
-        attention_score = request.data.get('attention_score') # Assuming frontend sends this
         
         if not class_session_id or features is None:
             return Response({'detail': 'class_session_id and features required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -355,28 +333,26 @@ def feature_records(request):
         
         fr = FeatureRecord.objects.create(student=request.user, class_session=cs, features=features)
 
-        # Update PomodoroSession based on distraction during pause
+        # Update PomodoroSession status
         pomodoro_session, created = PomodoroSession.objects.get_or_create(
             student=request.user,
             class_session=cs,
-            defaults={'status': 'idle', 'current_cycle_start_time': None} # Initialize if new
+            defaults={'status': 'idle', 'current_cycle_start_time': None}
         )
-
-
 
         return Response(FeatureRecordSerializer(fr).data, status=status.HTTP_201_CREATED)
 
-    # GET recent features
     events = FeatureRecord.objects.filter(student=request.user).order_by('-timestamp')[:200]
     serializer = FeatureRecordSerializer(events, many=True)
     return Response(serializer.data)
 
+# ==========================================
+# TEACHER VIEWS
+# ==========================================
 
-# Teacher endpoints
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def teacher_students(request):
-    """Get students in classes taught by authenticated teacher."""
     sessions = ClassSession.objects.filter(teacher=request.user)
     students_data = {}
     
@@ -384,7 +360,6 @@ def teacher_students(request):
         enrollments = StudentCourse.objects.filter(course=session.course)
         for enrollment in enrollments:
             if enrollment.student.id not in students_data:
-                # Get average attention for this student
                 records = AttentionRecord.objects.filter(student=enrollment.student)
                 avg_attention = 0
                 if records.exists():
@@ -407,11 +382,9 @@ def teacher_students(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def teacher_overview(request):
-    """Return overview stats for the authenticated teacher (students, classes, avg attention)."""
     sessions = ClassSession.objects.filter(teacher=request.user)
     total_classes = sessions.count()
 
-    # Collect unique students across all courses taught by this teacher
     student_ids = set()
     for session in sessions:
         enrollments = StudentCourse.objects.filter(course=session.course)
@@ -420,7 +393,6 @@ def teacher_overview(request):
 
     total_students = len(student_ids)
 
-    # Calculate average attention across students
     total_attention = 0
     total_records = 0
     for sid in student_ids:
@@ -442,12 +414,13 @@ def teacher_overview(request):
         'average_attention': average_attention
     })
 
+# ==========================================
+# POMODORO VIEWS
+# ==========================================
 
-# Pomodoro events
 @api_view(['POST', 'GET'])
 @permission_classes([IsAuthenticated])
 def pomodoro_events(request):
-    """Create or fetch pomodoro events for the authenticated student."""
     if request.method == 'POST':
         class_session_id = request.data.get('class_session_id')
         event_type = request.data.get('event_type')
@@ -459,19 +432,17 @@ def pomodoro_events(request):
         except ClassSession.DoesNotExist:
             return Response({'detail': 'Class session not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Record the PomodoroEvent
-        ev = __import__('api.models', fromlist=['PomodoroEvent']).PomodoroEvent.objects.create(
+        ev = PomodoroEvent.objects.create(
             student=request.user,
             class_session=cs,
             event_type=event_type,
             reason=reason
         )
 
-        # Update PomodoroSession state
         pomodoro_session, created = PomodoroSession.objects.get_or_create(
             student=request.user,
             class_session=cs,
-            defaults={'status': 'idle'} # Initialize if new, status will be updated next
+            defaults={'status': 'idle'}
         )
 
         if event_type == 'start':
@@ -489,25 +460,22 @@ def pomodoro_events(request):
 
             pomodoro_session.status = 'paused'
             pomodoro_session.current_cycle_start_time = timezone.now()
-            pomodoro_session.last_distraction_time = None # Reset distraction on new pause
+            pomodoro_session.last_distraction_time = None 
         elif event_type == 'end':
             pomodoro_session.status = 'idle'
             pomodoro_session.current_cycle_start_time = None
             pomodoro_session.work_elapsed_time_on_pause = None
         
         pomodoro_session.save()
-
         return Response({'id': ev.id, 'event_type': ev.event_type, 'timestamp': ev.timestamp}, status=status.HTTP_201_CREATED)
 
-    # GET: return recent events for student
-    events = __import__('api.models', fromlist=['PomodoroEvent']).PomodoroEvent.objects.filter(student=request.user).order_by('-timestamp')[:50]
+    events = PomodoroEvent.objects.filter(student=request.user).order_by('-timestamp')[:50]
     serializer = __import__('api.serializers', fromlist=['PomodoroEventSerializer']).PomodoroEventSerializer(events, many=True)
     return Response(serializer.data)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def pomodoro_status(request):
-    """Return the current pomodoro session status for the authenticated student."""
     class_session_id = request.query_params.get('class_session_id')
     if not class_session_id:
         return Response({'detail': 'class_session_id required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -520,7 +488,7 @@ def pomodoro_status(request):
     pomodoro_session, created = PomodoroSession.objects.get_or_create(
         student=request.user,
         class_session=cs,
-        defaults={'status': 'idle', 'current_cycle_start_time': None} # Initialize if new
+        defaults={'status': 'idle', 'current_cycle_start_time': None}
     )
 
     return Response({
@@ -535,13 +503,8 @@ def pomodoro_status(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def pomodoro_metrics(request):
-    """Return aggregated pomodoro metrics for the authenticated student."""
-    from django.db.models import Count
-    PomodoroEvent = __import__('api.models', fromlist=['PomodoroEvent']).PomodoroEvent
     total_events = PomodoroEvent.objects.filter(student=request.user).count()
     auto_pauses = PomodoroEvent.objects.filter(student=request.user, event_type='auto_pause').count()
-    # effective study time from AttentionRecord
-    from .models import AttentionRecord
     records = AttentionRecord.objects.filter(student=request.user)
     total_effective = sum(r.duration_seconds for r in records)
     return Response({'total_events': total_events, 'auto_pauses': auto_pauses, 'effective_seconds': total_effective})
@@ -550,75 +513,47 @@ def pomodoro_metrics(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def student_report(request):
-    """Return an aggregated report for the authenticated student.
-
-    Response JSON structure:
-    {
-      "summary": { "average_attention": 78, "total_sessions": 10, "total_minutes": 600 },
-      "timeline": [{"timestamp": "2025-12-01T10:00:00Z","attention": 78}, ...],
-      "by_hour": [{"hour": 10, "attention": 82}, ...],
-      "class_comparison": [{"course": "ALG101","student_avg": 78, "class_avg": 71}],
-      "pomodoro_metrics": { ... }
-    }
-    """
-    from django.db.models import Avg, Count
-    from .models import AttentionRecord, FeatureRecord, StudentCourse, ClassSession
-    from datetime import timedelta
-
-    # Optional filters from query params
     period = request.GET.get('period', 'month')
     subject = request.GET.get('subject')
 
     records = AttentionRecord.objects.filter(student=request.user)
 
-    # apply period filter
     days = 30
     if period == 'week':
         days = 7
     elif period == 'semester':
         days = 120
-    cutoff = timezone.now() - timedelta(days=days)
+    cutoff = timezone.now() - timezone.timedelta(days=days)
     records = records.filter(timestamp__gte=cutoff)
 
-    # apply subject filter if provided (accept course id or code)
     if subject:
         try:
-            # if numeric, treat as course id
             course_id = int(subject)
             records = records.filter(class_session__course__id=course_id)
         except Exception:
             records = records.filter(class_session__course__code__icontains=subject)
 
-    # Summary
     avg_att = int(records.aggregate(a=Avg('attention_score'))['a'] or 0)
     total_sessions = records.count()
     total_minutes = int(sum(r.duration_seconds for r in records) / 60)
 
-    # Timeline (last 50)
     timeline_qs = records.order_by('-timestamp')[:50]
     timeline = [
         { 'timestamp': r.timestamp.isoformat(), 'attention': r.attention_score }
         for r in reversed(timeline_qs)
     ]
 
-    # Attention by hour (DB-agnostic using ExtractHour)
-    from django.db.models.functions import ExtractHour
     by_hour_qs = records.annotate(hour=ExtractHour('timestamp')).values('hour').annotate(att=Avg('attention_score')).order_by('hour')
     by_hour = [{ 'hour': int(item['hour'] or 0), 'attention': int(item['att'] or 0) } for item in by_hour_qs]
 
-    # Class comparison: for each enrolled course compute student avg and class avg
     class_comp = []
     enrolled = StudentCourse.objects.filter(student=request.user)
     for sc in enrolled:
         course = sc.course
-        # student avg for this course
         student_avg = records.filter(class_session__course=course).aggregate(a=Avg('attention_score'))['a'] or 0
-        # class avg across students
         class_avg = AttentionRecord.objects.filter(class_session__course=course).aggregate(a=Avg('attention_score'))['a'] or 0
         class_comp.append({ 'course': course.code, 'course_name': course.name, 'student_avg': int(student_avg), 'class_avg': int(class_avg) })
 
-    # Pomodoro metrics (reuse existing logic)
-    from .models import PomodoroEvent
     total_events = PomodoroEvent.objects.filter(student=request.user).count()
     auto_pauses = PomodoroEvent.objects.filter(student=request.user, event_type='auto_pause').count()
     pomodoro_metrics_data = { 'total_events': total_events, 'auto_pauses': auto_pauses, 'effective_minutes': total_minutes }
@@ -631,30 +566,31 @@ def student_report(request):
         'pomodoro_metrics': pomodoro_metrics_data
     })
 
+# ==========================================
+# ADMIN VIEWS
+# ==========================================
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_users(request):
-    """Get all users in the system (admin only)."""
     if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
         return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
     
     users = User.objects.all()
     users_data = []
     for user in users:
-        # valores reales de BD
         role = 'student'
         user_code = f"USR{str(user.id).zfill(3)}"
         if hasattr(user, 'profile'):
             role = user.profile.role
-            user_code = user.profile.user_code  # EST001, DOC001, ADM002
+            user_code = user.profile.user_code
         
         users_data.append({
-            'id': user.id,                      # id numérico de auth_user
-            'userCode': user_code,              # código amigable
+            'id': user.id,
+            'userCode': user_code,
             'name': f"{user.first_name} {user.last_name}".strip() or user.username,
             'email': user.email,
-            'role': role.capitalize(),          # "Student", "Teacher", "Admin"
+            'role': role.capitalize(),
             'status': 'active',
             'lastConnection': 'Hace 5 minutos',
             'registrationDate': str(user.date_joined.date())
@@ -666,7 +602,6 @@ def admin_users(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def admin_active_sessions(request):
-    """Get active and upcoming class sessions."""
     if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
         return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
     
@@ -674,10 +609,7 @@ def admin_active_sessions(request):
     sessions_data = []
     
     for session in sessions:
-        # Count enrolled students
         students_count = StudentCourse.objects.filter(course=session.course).count()
-        
-        # Get average attention
         records = AttentionRecord.objects.filter(class_session=session)
         avg_attention = 0
         if records.exists():
@@ -697,7 +629,6 @@ def admin_active_sessions(request):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def admin_courses(request):
-    """Listar y crear cursos (solo admin)."""
     if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
         return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -705,7 +636,6 @@ def admin_courses(request):
         courses = Course.objects.all().order_by('code')
         return Response(CourseSerializer(courses, many=True).data)
 
-    # POST - crear curso
     serializer = CourseSerializer(data=request.data)
     if serializer.is_valid():
         course = serializer.save()
@@ -715,8 +645,6 @@ def admin_courses(request):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def teacher_class_sessions(request):
-    """Sesiones de clase creadas por el docente autenticado."""
-    # Solo docentes
     if not hasattr(request.user, 'profile') or request.user.profile.role != 'teacher':
         return Response({'detail': 'Only teachers can access this'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -724,9 +652,8 @@ def teacher_class_sessions(request):
         sessions = ClassSession.objects.filter(teacher=request.user).order_by('-date', '-time')
         return Response(ClassSessionSerializer(sessions, many=True).data)
 
-    # POST - crear sesión nueva
     data = request.data.copy()
-    data['teacher_id'] = request.user.id  # se fuerza al docente actual
+    data['teacher_id'] = request.user.id
     serializer = ClassSessionSerializer(data=data)
     if serializer.is_valid():
         session = serializer.save()
@@ -736,7 +663,6 @@ def teacher_class_sessions(request):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def teacher_student_courses(request):
-    """Asignar estudiantes a cursos y listar matriculados (solo docentes)."""
     if not hasattr(request.user, 'profile') or request.user.profile.role != 'teacher':
         return Response({'detail': 'Only teachers can access this'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -747,7 +673,6 @@ def teacher_student_courses(request):
         enrollments = StudentCourse.objects.filter(course_id=course_id).select_related('student', 'course')
         return Response(StudentCourseSerializer(enrollments, many=True).data)
 
-    # POST - matricular estudiante
     student_id = request.data.get('student_id')
     course_id = request.data.get('course_id')
     if not student_id or not course_id:
@@ -759,7 +684,6 @@ def teacher_student_courses(request):
     except (User.DoesNotExist, Course.DoesNotExist):
         return Response({'detail': 'Student or course not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    # crear o recuperar matrícula
     enrollment, created = StudentCourse.objects.get_or_create(student=student, course=course)
     return Response(
         StudentCourseSerializer(enrollment).data,
@@ -770,7 +694,6 @@ def teacher_student_courses(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def admin_assign_teacher(request):
-    # Solo admins
     if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
         return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -782,11 +705,9 @@ def admin_assign_teacher(request):
 
     course = get_object_or_404(Course, id=course_id)
     teacher = get_object_or_404(User, id=teacher_id)
-    # Verificamos que su perfil sea docente
     if not hasattr(teacher, 'profile') or teacher.profile.role != 'teacher':
         return Response({'detail': 'Selected user is not a teacher'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Crea una sesión “base” o la próxima sesión programada
     session = ClassSession.objects.create(
         course=course,
         teacher=teacher,
@@ -800,37 +721,22 @@ def admin_assign_teacher(request):
     return Response(ClassSessionSerializer(session).data, status=status.HTTP_201_CREATED)
 
 class IsTeacher(BasePermission):
-    """
-    Permiso personalizado para permitir solo a los usuarios con rol 'docente'.
-    """
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated and hasattr(request.user, 'profile') and request.user.profile.role == 'teacher'
 
 class CourseMaterialViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar los materiales de un curso.
-    Los docentes pueden crear, actualizar y eliminar.
-    Los estudiantes solo pueden leer.
-    """
     queryset = CourseMaterial.objects.all().order_by('-uploaded_at')
     serializer_class = CourseMaterialSerializer
 
     def get_permissions(self):
-        """
-        Permisos instanciados para una acción específica.
-        """
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAuthenticated, IsTeacher]
-        else: # list, retrieve, by_course
+        else:
             self.permission_classes = [IsAuthenticated]
         return super().get_permissions()
 
     @action(detail=False, methods=['get'], url_path='by-course/(?P<course_id>[^/.]+)')
     def by_course(self, request, course_id=None):
-        """
-        Obtiene todos los materiales para un curso específico.
-        """
-        # El estudiante debe estar inscrito en el curso para ver los materiales
         is_enrolled = StudentCourse.objects.filter(student=request.user, course_id=course_id).exists()
         is_teacher = ClassSession.objects.filter(teacher=request.user, course_id=course_id).exists()
 
@@ -859,7 +765,6 @@ def admin_enroll_student(request):
     except (User.DoesNotExist, Course.DoesNotExist):
         return Response({'detail': 'Student or course not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    # Opcional: asegurar que el usuario es estudiante
     if not hasattr(student, 'profile') or student.profile.role != 'student':
         return Response({'detail': 'Selected user is not a student'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -873,27 +778,28 @@ def admin_enroll_student(request):
         status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
     )
 
-# --- AGREGAR ESTAS NUEVAS VISTAS ---
+# ==========================================
+# QUIZ & AI GEN (CORREGIDO PARA NUEVA LIBRERIA)
+# ==========================================
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsTeacher])
 def generate_quiz_ai(request):
     """
     Genera un Quiz de 10 preguntas basado en un material subido.
+    Utiliza google-genai v1.0+
     """
     material_id = request.data.get('material_id')
     material = get_object_or_404(CourseMaterial, id=material_id)
     
-    # 1. Extraer texto del archivo (Soporte PDF y Texto)
+    # 1. Extraer texto del archivo
     text_content = ""
     try:
         if material.file.name.lower().endswith('.pdf'):
             reader = PdfReader(material.file.path)
-            # Leemos máximo 5 páginas para no saturar el contexto
             for page in reader.pages[:5]: 
                 text_content += page.extract_text() or ""
         else:
-            # Intentar leer como texto
             with open(material.file.path, 'r', encoding='utf-8', errors='ignore') as f:
                 text_content = f.read()
     except Exception as e:
@@ -902,36 +808,38 @@ def generate_quiz_ai(request):
     if len(text_content) < 50:
         return Response({'detail': 'El archivo contiene muy poco texto para generar un examen.'}, status=400)
 
-    # 2. Configurar y Llamar a Gemini
-    # ⚠️ REEMPLAZA CON TU API KEY REAL O USA VARIABLES DE ENTORNO
-    GEMINI_API_KEY = "AIzaSyAYoq5DXWe1xGd-u080wVXjZUrlVSnH1D0" 
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('models/gemini-flash-lite-latest')
-    
-    prompt = f"""
-    Eres un profesor experto. Basado en el siguiente texto educativo, genera un examen de 10 preguntas de selección múltiple.
-    El formato de salida DEBE ser estrictamente un JSON válido (sin markdown) con esta estructura:
-    [
-      {{
-        "question": "¿Enunciado de la pregunta?",
-        "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
-        "correct_index": 0,
-        "explanation": "Breve explicación de por qué es correcta"
-      }}
-    ]
-    
-    Texto del material:
-    {text_content[:10000]} 
-    """ 
-    
+    # 2. Configurar y Llamar a Gemini (SDK NUEVO)
     try:
-        response = model.generate_content(prompt)
-        # Limpieza por si Gemini devuelve bloques de código markdown
-        clean_json = response.text.replace('```json', '').replace('```', '').strip()
-        quiz_data = json.loads(clean_json)
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        
+        prompt = f"""
+        Eres un profesor experto. Basado en el siguiente texto educativo, genera un examen de 10 preguntas de selección múltiple.
+        El formato de salida DEBE ser estrictamente un JSON válido (sin markdown) con esta estructura:
+        [
+          {{
+            "question": "¿Enunciado de la pregunta?",
+            "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
+            "correct_index": 0,
+            "explanation": "Breve explicación de por qué es correcta"
+          }}
+        ]
+        
+        Texto del material:
+        {text_content[:10000]} 
+        """ 
+
+        response = client.models.generate_content(
+            model='gemini-2.5-flash-lite',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json"
+            )
+        )
+        
+        # Al usar response_mime_type="application/json", response.text ya es JSON limpio
+        quiz_data = json.loads(response.text)
         
         # 3. Guardar en Base de Datos
-        # Borrar quiz anterior si existe para este material
         Quiz.objects.filter(course_material=material).delete()
         
         quiz = Quiz.objects.create(
@@ -956,7 +864,6 @@ def generate_quiz_ai(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_quiz(request, material_id):
-    """Obtiene el quiz asociado a un material para que el estudiante lo rinda."""
     material = get_object_or_404(CourseMaterial, id=material_id)
     try:
         quiz = material.generated_quiz
@@ -980,11 +887,8 @@ def get_quiz(request, material_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def submit_quiz(request):
-    """
-    Califica el quiz, guarda la nota y pide recomendación a Gemini.
-    """
     quiz_id = request.data.get('quiz_id')
-    answers = request.data.get('answers') # Diccionario { "question_id": index_respuesta }
+    answers = request.data.get('answers')
     
     quiz = get_object_or_404(Quiz, id=quiz_id)
     questions = quiz.questions.all()
@@ -997,29 +901,33 @@ def submit_quiz(request):
         if user_answer is not None and int(user_answer) == question.correct_answer:
             score_count += 1
         else:
-            mistakes.append(f"- Tema: {question.text}. Correcta: {question.options[question.correct_answer]}")
+            correct_opt = question.options[question.correct_answer] if question.correct_answer < len(question.options) else "Desconocida"
+            mistakes.append(f"- Tema: {question.text}. Correcta: {correct_opt}")
             
     final_score = (score_count / len(questions)) * 10
     
-    # 4. Generar Feedback con Gemini
+    # 4. Generar Feedback con Gemini (SDK NUEVO)
     feedback = "¡Excelente trabajo! Has dominado el tema."
     if mistakes:
-        GEMINI_API_KEY = "AIzaSyAYoq5DXWe1xGd-u080wVXjZUrlVSnH1D0"
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('models/gemini-flash-lite-latest')
-        
-        error_context = "\n".join(mistakes[:5]) # Mandamos los primeros 5 errores
-        prompt = f"""
-        Un estudiante sacó {final_score}/10 en una prueba.
-        Se equivocó en:
-        {error_context}
-        
-        Dame una recomendación corta (max 3 líneas), motivadora y directa para que mejore en esos temas específicos. Háblale de "tú".
-        """
         try:
-            resp = model.generate_content(prompt)
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            
+            error_context = "\n".join(mistakes[:5])
+            prompt = f"""
+            Un estudiante sacó {final_score}/10 en una prueba.
+            Se equivocó en:
+            {error_context}
+            
+            Dame una recomendación corta (max 3 líneas), motivadora y directa para que mejore en esos temas específicos. Háblale de "tú".
+            """
+            
+            resp = client.models.generate_content(
+                model='gemini-2.5-flash-lite',
+                contents=prompt
+            )
             feedback = resp.text
-        except:
+        except Exception as e:
+            print(f"Error feedback IA: {e}")
             feedback = "Revisa los temas en los que fallaste para reforzar tu aprendizaje."
 
     StudentQuizAttempt.objects.create(

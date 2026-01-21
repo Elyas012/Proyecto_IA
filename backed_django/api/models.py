@@ -208,7 +208,6 @@ class CourseMaterial(models.Model):
         return f"{self.course.code} - {self.title}"
 # --- AGREGAR AL FINAL DE api/models.py ---
 
-# --- AGREGAR AL FINAL DE api/models.py ---
 
 class Quiz(models.Model):
     course_material = models.OneToOneField(CourseMaterial, on_delete=models.CASCADE, related_name='generated_quiz')

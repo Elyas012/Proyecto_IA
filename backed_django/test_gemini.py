@@ -1,23 +1,16 @@
-import google.generativeai as genai
+from google import genai
 
-# Pega tu clave aquí
-API_KEY = "AIzaSyAYoq5DXWe1xGd-u080wVXjZUrlVSnH1D0"
+# Tu API KEY real
+API_KEY = "AIzaSyB_66tL4aj5yJ5H4Yjbq6IeLkBfEYWWyRM" 
 
-genai.configure(api_key=API_KEY)
+client = genai.Client(api_key=API_KEY)
 
-print("🔍 Buscando modelos disponibles...")
+print("--- LISTA DE MODELOS DISPONIBLES ---")
+
 try:
-    available_models = []
-    for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
-            print(f"✅ Encontrado: {m.name}")
-            available_models.append(m.name)
-            
-    if not available_models:
-        print("❌ No se encontraron modelos compatibles con generateContent.")
-    else:
-        print("\n💡 PRUEBA ESTO: Copia uno de los nombres de arriba (ej: 'models/gemini-1.5-flash')")
-        print("y pégalo en tu archivo views.py")
-
+    # Iteramos y solo imprimimos el nombre, sin filtros complejos
+    for m in client.models.list():
+        print(f"Nombre: {m.name}")
+        
 except Exception as e:
-    print(f"❌ Error de conexión: {e}")
+    print(f"❌ Error: {e}")

@@ -49,12 +49,13 @@
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, materialId]);
-
+    
     const loadQuiz = async () => {
         if (!materialId) return;
         setLoading(true);
         try {
-        const res = await api.get(`/student/quiz/${materialId}/`);
+        // ✅ ESTA ES LA RUTA CORRECTA QUE COINCIDE CON TU URLS.PY
+        const res = await api.get(`/course-materials/${materialId}/quiz/`); 
         setQuiz(res.data);
         } catch (e) {
         toast.error("Este material no tiene evaluación asignada.");
