@@ -64,7 +64,8 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2",
-    "@react-oauth/google": "^0.12.1"
+    "@react-oauth/google": "^0.12.1",
+    "@greatsumini/react-facebook-login": "^3.3.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -11,5 +11,6 @@ pypdf
 google-auth>=2.47.0
 google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.2.0
+requests>=2.31.0
 mysqlclient
 

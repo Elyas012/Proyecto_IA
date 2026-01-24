@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "../components/ui/alert";
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock, Mail, User, Shield, GraduationCap, Users, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
+import LoginButton from '@greatsumini/react-facebook-login';
 import api from "../lib/api";
 
 
@@ -185,6 +186,49 @@ const handleGoogleLogin = async (credentialResponse: CredentialResponse) => {
     console.error("Google login error", err);
     const errorData = err?.response?.data;
     let errorMsg = "Error al iniciar sesión con Google. Por favor, inténtalo de nuevo.";
+    
+    if (errorData && typeof errorData.detail === 'string') {
+      errorMsg = errorData.detail;
+    }
+    
+    setErrors({ loginGeneral: errorMsg });
+    setSuccessMessage("");
+  }
+};
+
+// Manejar login con Facebook
+const handleFacebookLogin = async (response: any) => {
+  if (!response.accessToken) {
+    setErrors({ loginGeneral: "Error al iniciar sesión con Facebook" });
+    return;
+  }
+
+  try {
+    setSuccessMessage("Autenticando con Facebook...");
+    setErrors({});
+    
+    const apiResponse = await api.post("/auth/facebook/", {
+      accessToken: response.accessToken,
+    });
+    
+    const { token, user } = apiResponse.data;
+    
+    if (typeof window !== "undefined") {
+      if (token) localStorage.setItem("authToken", token);
+      if (user) localStorage.setItem("user", JSON.stringify(user));
+    }
+    
+    setSuccessMessage("Inicio de sesión exitoso con Facebook. Redirigiendo...");
+    
+    const role = user?.role || "student";
+    const mappedRole =
+      role === "teacher" ? "Docente" : role === "admin" ? "Administrador" : "Estudiante";
+
+    onLoginSuccess?.(mappedRole);
+  } catch (err: any) {
+    console.error("Facebook login error", err);
+    const errorData = err?.response?.data;
+    let errorMsg = "Error al iniciar sesión con Facebook. Por favor, inténtalo de nuevo.";
     
     if (errorData && typeof errorData.detail === 'string') {
       errorMsg = errorData.detail;
@@ -400,18 +444,55 @@ const handleRegister = async (e: React.FormEvent) => {
                     </div>
                   </div>
 
-                  <div className="flex justify-center">
-                    <GoogleLogin
-                      onSuccess={handleGoogleLogin}
-                      onError={() => {
-                        setErrors({ loginGeneral: "Error al iniciar sesión con Google" });
-                      }}
-                      text="signin_with"
-                      shape="rectangular"
-                      theme="outline"
-                      size="large"
-                      width="100%"
-                    />
+                  <div className="space-y-3">
+                    <div className="flex justify-center">
+                      <GoogleLogin
+                        onSuccess={handleGoogleLogin}
+                        onError={() => {
+                          setErrors({ loginGeneral: "Error al iniciar sesión con Google" });
+                        }}
+                        text="signin_with"
+                        shape="rectangular"
+                        theme="outline"
+                        size="large"
+                        width="100%"
+                      />
+                    </div>
+
+                    <div className="flex justify-center">
+                      <LoginButton
+                        appId={process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || ""}
+                        onSuccess={(response: any) => {
+                          handleFacebookLogin(response);
+                        }}
+                        onFail={(error: any) => {
+                          console.error('Facebook login failed', error);
+                          setErrors({ loginGeneral: "Error al iniciar sesión con Facebook" });
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem 1rem',
+                          backgroundColor: '#1877f2',
+                          color: 'white',
+                          borderRadius: '0.375rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontWeight: '500',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e: any) => e.target.style.backgroundColor = '#166fe5'}
+                        onMouseLeave={(e: any) => e.target.style.backgroundColor = '#1877f2'}
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                        </svg>
+                        Continuar con Facebook
+                      </LoginButton>
+                    </div>
                   </div>
 
                   {errors.loginGeneral && (

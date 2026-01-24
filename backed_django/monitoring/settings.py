@@ -10,6 +10,8 @@ env = environ.Env(
     DEBUG=(bool, True),
     GOOGLE_OAUTH_CLIENT_ID=(str, ''),
     GOOGLE_OAUTH_CLIENT_SECRET=(str, ''),
+    FACEBOOK_APP_ID=(str, ''),
+    FACEBOOK_APP_SECRET=(str, ''),
 )
 
 # Read .env file if it exists
@@ -142,6 +144,10 @@ X_FRAME_OPTIONS = 'ALLOWALL'
 GOOGLE_OAUTH_CLIENT_ID = env('GOOGLE_OAUTH_CLIENT_ID')
 GOOGLE_OAUTH_CLIENT_SECRET = env('GOOGLE_OAUTH_CLIENT_SECRET')
 GOOGLE_OAUTH_REDIRECT_URI = env('GOOGLE_OAUTH_REDIRECT_URI', default='http://localhost:3000/auth/callback')
+
+# Facebook OAuth Configuration
+FACEBOOK_APP_ID = env('FACEBOOK_APP_ID')
+FACEBOOK_APP_SECRET = env('FACEBOOK_APP_SECRET')
 
 # Definir AUTH_USER_MODEL al inicio del proyecto es la práctica recomendada
 # cuando se usa un modelo de usuario customizado.[web:23][web:31]

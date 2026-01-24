@@ -32,6 +32,9 @@ from google.genai import types
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
+# Facebook OAuth
+import requests
+
 # Imports de tus modelos y serializadores locales
 from .models import (
     Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile, 
@@ -304,6 +307,94 @@ class GoogleAuthView(APIView):
         except ValueError as e:
             # Token inválido
             return Response({'detail': f'Invalid token: {str(e)}'}, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            return Response({'detail': f'Authentication failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class FacebookAuthView(APIView):
+    """
+    Vista para manejar la autenticación con Facebook OAuth.
+    Recibe el access token de Facebook y valida/crea el usuario.
+    """
+    permission_classes = []
+
+    def post(self, request):
+        access_token = request.data.get('accessToken')
+        
+        if not access_token:
+            return Response({'detail': 'Access token is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Verificar el token con Facebook Graph API
+            debug_token_url = f'https://graph.facebook.com/debug_token'
+            params = {
+                'input_token': access_token,
+                'access_token': f"{settings.FACEBOOK_APP_ID}|{settings.FACEBOOK_APP_SECRET}"
+            }
+            
+            debug_response = requests.get(debug_token_url, params=params)
+            debug_data = debug_response.json()
+            
+            if not debug_data.get('data', {}).get('is_valid'):
+                return Response({'detail': 'Invalid Facebook token'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Obtener información del usuario de Facebook
+            user_info_url = f'https://graph.facebook.com/me'
+            params = {
+                'fields': 'id,name,email',
+                'access_token': access_token
+            }
+            
+            user_response = requests.get(user_info_url, params=params)
+            user_data = user_response.json()
+            
+            email = user_data.get('email')
+            name = user_data.get('name', '')
+            facebook_id = user_data.get('id')
+            
+            if not email:
+                return Response({'detail': 'Email not provided by Facebook'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Buscar o crear usuario
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'username': email.split('@')[0],
+                    'first_name': name,
+                }
+            )
+            
+            # Si el usuario es nuevo, crear su perfil
+            if created:
+                UserProfile.objects.create(
+                    user=user, 
+                    role='student',  # Por defecto, todos los usuarios de Facebook son estudiantes
+                    user_code=f'EST-FB-{facebook_id[:8]}'  # Generar un código único
+                )
+            
+            # Obtener o crear token de autenticación
+            auth_token, _ = Token.objects.get_or_create(user=user)
+            
+            # Obtener rol del usuario
+            role = 'student'
+            try:
+                if hasattr(user, 'profile'):
+                    role = user.profile.role
+            except:
+                pass
+            
+            return Response({
+                'token': auth_token.key,
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': role,
+                    'name': user.first_name
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except requests.RequestException as e:
+            return Response({'detail': f'Facebook API error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             return Response({'detail': f'Authentication failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
