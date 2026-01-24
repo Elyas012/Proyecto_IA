@@ -3,10 +3,11 @@ import { Button } from "./ui/button";
 import { Menu, X } from "lucide-react";
 
 interface NavbarProps {
-  onAuthClick?: () => void;
+  onLoginClick?: () => void;
+  onRegisterClick?: () => void;
 }
 
-export function Navbar({ onAuthClick }: NavbarProps) {
+export function Navbar({ onLoginClick, onRegisterClick }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const toggleMenu = () => {
@@ -41,10 +42,10 @@ export function Navbar({ onAuthClick }: NavbarProps) {
 
           {/* Auth Buttons - Desktop */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button variant="ghost" onClick={onAuthClick}>
+            <Button variant="ghost" onClick={onLoginClick}>
               Iniciar sesión
             </Button>
-            <Button onClick={onAuthClick}>
+            <Button onClick={onRegisterClick}>
               Registro
             </Button>
           </div>
@@ -88,10 +89,10 @@ export function Navbar({ onAuthClick }: NavbarProps) {
               Contacto
             </a>
             <div className="pt-4 space-y-2">
-              <Button variant="ghost" className="w-full" onClick={() => { closeMenu(); onAuthClick?.(); }}>
+              <Button variant="ghost" className="w-full" onClick={() => { closeMenu(); onLoginClick?.(); }}>
                 Iniciar sesión
               </Button>
-              <Button className="w-full" onClick={() => { closeMenu(); onAuthClick?.(); }}>
+              <Button className="w-full" onClick={() => { closeMenu(); onRegisterClick?.(); }}>
                 Registro
               </Button>
             </div>

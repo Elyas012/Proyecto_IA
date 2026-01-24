@@ -14,6 +14,7 @@ import type { AppProps } from 'next/app';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<"home" | "auth" | "student-dashboard" | "teacher-dashboard" | "admin-dashboard">("home");
+  const [authTab, setAuthTab] = useState<"login" | "register">("login");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
@@ -43,7 +44,9 @@ export default function App() {
   if (currentPage === "auth") {
     return (
       <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
-        <Auth onLoginSuccess={(role) => {
+        <Auth 
+          initialTab={authTab}
+          onLoginSuccess={(role) => {
           if (role === "Estudiante") {
             setCurrentPage("student-dashboard");
           } else if (role === "Docente") {
@@ -102,7 +105,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar onAuthClick={() => setCurrentPage("auth")} />
+      <Navbar 
+        onLoginClick={() => {
+          setAuthTab("login");
+          setCurrentPage("auth");
+        }} 
+        onRegisterClick={() => {
+          setAuthTab("register");
+          setCurrentPage("auth");
+        }}
+      />
       
       {/* Hero Section */}
       <section id="inicio" className="relative py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
