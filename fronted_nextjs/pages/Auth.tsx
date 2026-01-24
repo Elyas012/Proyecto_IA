@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock, Mail, User, Shield, GraduationCap, Users, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
+import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import api from "../lib/api";
 
 
@@ -149,6 +150,44 @@ const handleLogin = async (e: React.FormEvent) => {
       } else if (typeof errorData.detail === 'string') {
         errorMsg = errorData.detail;
       }
+    }
+    
+    setErrors({ loginGeneral: errorMsg });
+    setSuccessMessage("");
+  }
+};
+
+// Manejar login con Google
+const handleGoogleLogin = async (credentialResponse: CredentialResponse) => {
+  try {
+    setSuccessMessage("Autenticando con Google...");
+    setErrors({});
+    
+    const response = await api.post("/auth/google/", {
+      token: credentialResponse.credential,
+    });
+    
+    const { token, user } = response.data;
+    
+    if (typeof window !== "undefined") {
+      if (token) localStorage.setItem("authToken", token);
+      if (user) localStorage.setItem("user", JSON.stringify(user));
+    }
+    
+    setSuccessMessage("Inicio de sesión exitoso con Google. Redirigiendo...");
+    
+    const role = user?.role || "student";
+    const mappedRole =
+      role === "teacher" ? "Docente" : role === "admin" ? "Administrador" : "Estudiante";
+
+    onLoginSuccess?.(mappedRole);
+  } catch (err: any) {
+    console.error("Google login error", err);
+    const errorData = err?.response?.data;
+    let errorMsg = "Error al iniciar sesión con Google. Por favor, inténtalo de nuevo.";
+    
+    if (errorData && typeof errorData.detail === 'string') {
+      errorMsg = errorData.detail;
     }
     
     setErrors({ loginGeneral: errorMsg });
@@ -351,6 +390,29 @@ const handleRegister = async (e: React.FormEvent) => {
                       Iniciar Sesión
                     </Button>
                   </form>
+
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-gray-300" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white px-2 text-gray-500">O continúa con</span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center">
+                    <GoogleLogin
+                      onSuccess={handleGoogleLogin}
+                      onError={() => {
+                        setErrors({ loginGeneral: "Error al iniciar sesión con Google" });
+                      }}
+                      text="signin_with"
+                      shape="rectangular"
+                      theme="outline"
+                      size="large"
+                      width="100%"
+                    />
+                  </div>
 
                   {errors.loginGeneral && (
                     <motion.div

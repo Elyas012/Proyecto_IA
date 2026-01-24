@@ -1,12 +1,25 @@
 import os
 from pathlib import Path
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Initialize environment variables
+env = environ.Env(
+    DEBUG=(bool, True),
+    GOOGLE_OAUTH_CLIENT_ID=(str, ''),
+    GOOGLE_OAUTH_CLIENT_SECRET=(str, ''),
+)
+
+# Read .env file if it exists
+env_file = os.path.join(BASE_DIR, '.env')
+if os.path.exists(env_file):
+    environ.Env.read_env(env_file)
+
 # Quick-start development settings - unsuitable for production
-SECRET_KEY = 'django-insecure-ulki&jln3%9)%7-tp=ubno5hsv_etmaa+02ysl)^f^@^)4xe_a'
-DEBUG = True
+SECRET_KEY = env('SECRET_KEY', default='django-insecure-ulki&jln3%9)%7-tp=ubno5hsv_etmaa+02ysl)^f^@^)4xe_a')
+DEBUG = env('DEBUG')
 ALLOWED_HOSTS = []
 
 # Application definition
@@ -125,6 +138,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 X_FRAME_OPTIONS = 'ALLOWALL'
 
+# Google OAuth Configuration
+GOOGLE_OAUTH_CLIENT_ID = env('GOOGLE_OAUTH_CLIENT_ID')
+GOOGLE_OAUTH_CLIENT_SECRET = env('GOOGLE_OAUTH_CLIENT_SECRET')
+GOOGLE_OAUTH_REDIRECT_URI = env('GOOGLE_OAUTH_REDIRECT_URI', default='http://localhost:3000/auth/callback')
 
 # Definir AUTH_USER_MODEL al inicio del proyecto es la práctica recomendada
 # cuando se usa un modelo de usuario customizado.[web:23][web:31]

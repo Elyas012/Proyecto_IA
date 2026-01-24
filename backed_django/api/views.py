@@ -28,6 +28,10 @@ from rest_framework.permissions import IsAuthenticated, BasePermission, AllowAny
 from google import genai
 from google.genai import types
 
+# Google OAuth
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
 # Imports de tus modelos y serializadores locales
 from .models import (
     Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile, 
@@ -228,6 +232,80 @@ class RegisterView(APIView):
         UserProfile.objects.create(user=user, role=role, user_code=user_id)
         token, created = Token.objects.get_or_create(user=user)
         return Response({'token': token.key, 'user': {'id': user.id, 'username': user.username, 'email': user.email, 'role': role}}, status=status.HTTP_201_CREATED)
+
+class GoogleAuthView(APIView):
+    """
+    Vista para manejar la autenticación con Google OAuth.
+    Recibe el ID token de Google y valida/crea el usuario.
+    """
+    permission_classes = []
+
+    def post(self, request):
+        token = request.data.get('token')
+        
+        if not token:
+            return Response({'detail': 'Token is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Verificar el token con Google
+            idinfo = id_token.verify_oauth2_token(
+                token, 
+                google_requests.Request(), 
+                settings.GOOGLE_OAUTH_CLIENT_ID
+            )
+            
+            # Extraer información del usuario
+            email = idinfo.get('email')
+            name = idinfo.get('name', '')
+            google_id = idinfo.get('sub')
+            
+            if not email:
+                return Response({'detail': 'Email not provided by Google'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Buscar o crear usuario
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'username': email.split('@')[0],
+                    'first_name': name,
+                }
+            )
+            
+            # Si el usuario es nuevo, crear su perfil
+            if created:
+                UserProfile.objects.create(
+                    user=user, 
+                    role='student',  # Por defecto, todos los usuarios de Google son estudiantes
+                    user_code=f'EST-{google_id[:8]}'  # Generar un código único
+                )
+            
+            # Obtener o crear token de autenticación
+            auth_token, _ = Token.objects.get_or_create(user=user)
+            
+            # Obtener rol del usuario
+            role = 'student'
+            try:
+                if hasattr(user, 'profile'):
+                    role = user.profile.role
+            except:
+                pass
+            
+            return Response({
+                'token': auth_token.key,
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': role,
+                    'name': user.first_name
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except ValueError as e:
+            # Token inválido
+            return Response({'detail': f'Invalid token: {str(e)}'}, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            return Response({'detail': f'Authentication failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ==========================================
 # STUDENT VIEWS

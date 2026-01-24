@@ -1,6 +1,6 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path
-from .views import (MessageViewSet, LoginView, RegisterView, student_courses, 
+from .views import (MessageViewSet, LoginView, RegisterView, GoogleAuthView, student_courses, 
                     record_attention, teacher_students, teacher_overview, admin_users, 
                     admin_active_sessions, pomodoro_events, pomodoro_metrics, 
                     feature_records, current_user, CourseMaterialViewSet, predict_distractions)
@@ -14,6 +14,7 @@ urlpatterns = router.urls + [
     # Auth
     path('auth/login/', LoginView.as_view(), name='api-login'),
     path('auth/register/', RegisterView.as_view(), name='api-register'),
+    path('auth/google/', GoogleAuthView.as_view(), name='api-google-auth'),
     path('auth/me/', current_user, name='api-me'),
     
     # Student

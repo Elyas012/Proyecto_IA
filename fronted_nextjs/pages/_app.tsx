@@ -7,6 +7,7 @@ import { Auth } from "../pages/Auth";
 import { StudentDashboard } from "../pages/StudentDashboard";
 import { TeacherDashboard } from "../pages/TeacherDashboard";
 import { AdminDashboard } from "../pages/AdminDashboard";
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { motion } from "framer-motion";
 import '../styles/globals.css';
 import type { AppProps } from 'next/app';
@@ -40,15 +41,19 @@ export default function App() {
   }, []);
   
   if (currentPage === "auth") {
-    return <Auth onLoginSuccess={(role) => {
-      if (role === "Estudiante") {
-        setCurrentPage("student-dashboard");
-      } else if (role === "Docente") {
-        setCurrentPage("teacher-dashboard");
-      } else if (role === "Administrador") {
-        setCurrentPage("admin-dashboard");
-      }
-    }} onBack={() => setCurrentPage("home")} />;
+    return (
+      <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
+        <Auth onLoginSuccess={(role) => {
+          if (role === "Estudiante") {
+            setCurrentPage("student-dashboard");
+          } else if (role === "Docente") {
+            setCurrentPage("teacher-dashboard");
+          } else if (role === "Administrador") {
+            setCurrentPage("admin-dashboard");
+          }
+        }} onBack={() => setCurrentPage("home")} />
+      </GoogleOAuthProvider>
+    );
   }
 
   const handleLogout = () => {
@@ -58,15 +63,27 @@ export default function App() {
   };
 
   if (currentPage === "student-dashboard") {
-    return <StudentDashboard onLogout={handleLogout} />;
+    return (
+      <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
+        <StudentDashboard onLogout={handleLogout} />
+      </GoogleOAuthProvider>
+    );
   }
 
   if (currentPage === "teacher-dashboard") {
-    return <TeacherDashboard onLogout={handleLogout} />;
+    return (
+      <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
+        <TeacherDashboard onLogout={handleLogout} />
+      </GoogleOAuthProvider>
+    );
   }
 
   if (currentPage === "admin-dashboard") {
-    return <AdminDashboard onLogout={handleLogout} />;
+    return (
+      <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
+        <AdminDashboard onLogout={handleLogout} />
+      </GoogleOAuthProvider>
+    );
   }
 
   const fadeInUp = {
