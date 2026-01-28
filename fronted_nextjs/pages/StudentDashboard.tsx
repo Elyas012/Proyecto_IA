@@ -67,6 +67,44 @@ interface PomodoroMetrics {
   effective_seconds: number;
 }
 
+interface StatsSummary {
+  average_attention: number;
+  total_sessions: number;
+  total_minutes: number;
+  period: string;
+}
+
+interface TimelineData {
+  timestamp: string;
+  attention: number;
+}
+
+interface HourData {
+  hour: number;
+  attention: number;
+}
+
+interface ClassComparison {
+  course: string;
+  course_name: string;
+  student_avg: number;
+  class_avg: number;
+}
+
+interface PomodoroStatsMetrics {
+  total_events: number;
+  auto_pauses: number;
+  effective_minutes: number;
+}
+
+interface StatsData {
+  summary: StatsSummary;
+  timeline: TimelineData[];
+  by_hour: HourData[];
+  class_comparison: ClassComparison[];
+  pomodoro_metrics: PomodoroStatsMetrics;
+}
+
 interface StudentDashboardProps {
   onLogout?: () => void;
 }
@@ -110,6 +148,11 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [pomodoroMetrics, setPomodoroMetrics] = useState<PomodoroMetrics | null>(null);
   const [autoPauseTriggered, setAutoPauseTriggered] = useState(false);
   
+  // Estados para Estadísticas
+  const [statsData, setStatsData] = useState<StatsData | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | 'semester'>('month');
+  
   const [pomodoroSession, setPomodoroSession] = useState(1);
   const [pomodoroPhase, setPomodoroPhase] = useState<PomodoroPhase>("trabajo");
   const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
@@ -137,6 +180,21 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
     } catch (err) {
       console.warn('Could not load pomodoro metrics', err);
       setPomodoroMetrics(null);
+    }
+  };
+
+  const loadStatistics = async (period: 'week' | 'month' | 'semester' = 'month') => {
+    setStatsLoading(true);
+    try {
+      const response = await api.get('/student/report/', {
+        params: { period }
+      });
+      setStatsData(response.data);
+    } catch (error) {
+      console.error('Error loading statistics:', error);
+      toast.error('No se pudieron cargar las estadísticas');
+    } finally {
+      setStatsLoading(false);
     }
   };
 
@@ -170,6 +228,13 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
       loadPomodoroMetrics();
     }
   }, []);
+
+  // Cargar estadísticas cuando se cambia a la vista de stats
+  useEffect(() => {
+    if (currentView === 'stats' && token) {
+      loadStatistics(statsPeriod);
+    }
+  }, [currentView, token]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined;
@@ -1209,17 +1274,264 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Estadísticas</h1>
                 <p className="text-gray-600">Tu rendimiento académico</p>
               </div>
-            )
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Próximamente</CardTitle>
-                  <CardDescription>Estadísticas detalladas de tu desempeño</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">Esta sección estará disponible pronto con gráficos detallados de tu progreso.</p>
-                </CardContent>
-              </Card>
+              {/* Filtro de Período */}
+              <div className="mb-6 flex gap-2">
+                <Button
+                  variant={statsPeriod === 'week' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setStatsPeriod('week');
+                    loadStatistics('week');
+                  }}
+                >
+                  Última Semana
+                </Button>
+                <Button
+                  variant={statsPeriod === 'month' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setStatsPeriod('month');
+                    loadStatistics('month');
+                  }}
+                >
+                  Último Mes
+                </Button>
+                <Button
+                  variant={statsPeriod === 'semester' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setStatsPeriod('semester');
+                    loadStatistics('semester');
+                  }}
+                >
+                  Semestre
+                </Button>
+              </div>
+
+              {statsLoading ? (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="flex justify-center items-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : statsData ? (
+                <div className="space-y-6">
+                  {/* Tarjetas de Resumen */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4" />
+                          Atención Promedio
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-3xl font-bold text-blue-600">
+                          {statsData.summary.average_attention}%
+                        </div>
+                        <Progress value={statsData.summary.average_attention} className="mt-2" />
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                          <Activity className="h-4 w-4" />
+                          Sesiones Totales
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-3xl font-bold text-green-600">
+                          {statsData.summary.total_sessions}
+                        </div>
+                        <p className="text-sm text-gray-500 mt-2">sesiones completadas</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          Tiempo Total
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-3xl font-bold text-purple-600">
+                          {Math.floor(statsData.summary.total_minutes / 60)}h {statsData.summary.total_minutes % 60}m
+                        </div>
+                        <p className="text-sm text-gray-500 mt-2">de estudio</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Gráfico de Timeline */}
+                  {statsData.timeline.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Evolución de Atención</CardTitle>
+                        <CardDescription>Últimas 50 sesiones</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <AreaChart data={statsData.timeline}>
+                            <defs>
+                              <linearGradient id="colorAttention" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="timestamp" 
+                              tickFormatter={(value) => {
+                                const date = new Date(value);
+                                return `${date.getDate()}/${date.getMonth() + 1}`;
+                              }}
+                            />
+                            <YAxis domain={[0, 100]} />
+                            <Tooltip 
+                              labelFormatter={(value) => {
+                                const date = new Date(value as string);
+                                return date.toLocaleString();
+                              }}
+                              formatter={(value: number) => [`${value}%`, 'Atención']}
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="attention" 
+                              stroke="#3b82f6" 
+                              fillOpacity={1} 
+                              fill="url(#colorAttention)" 
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Gráfico por Hora del Día */}
+                  {statsData.by_hour.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Atención por Hora del Día</CardTitle>
+                        <CardDescription>Promedio de atención según la hora</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <AreaChart data={statsData.by_hour}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="hour" 
+                              tickFormatter={(hour) => `${hour}:00`}
+                            />
+                            <YAxis domain={[0, 100]} />
+                            <Tooltip 
+                              labelFormatter={(hour) => `Hora: ${hour}:00`}
+                              formatter={(value: number) => [`${value}%`, 'Atención']}
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="attention" 
+                              stroke="#10b981" 
+                              fill="#10b981" 
+                              fillOpacity={0.6}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Comparación con la Clase */}
+                  {statsData.class_comparison.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Comparación con el Promedio de Clase</CardTitle>
+                        <CardDescription>Tu rendimiento vs. promedio del curso</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {statsData.class_comparison.map((comp, idx) => (
+                            <div key={idx} className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium">{comp.course_name}</span>
+                                <div className="flex gap-4 text-sm">
+                                  <span className="text-blue-600">Tú: {comp.student_avg}%</span>
+                                  <span className="text-gray-600">Clase: {comp.class_avg}%</span>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <div className="flex-1">
+                                  <Progress value={comp.student_avg} className="h-2" />
+                                </div>
+                                <div className="flex-1">
+                                  <Progress value={comp.class_avg} className="h-2 bg-gray-200" />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Métricas de Pomodoro */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Métricas Pomodoro</CardTitle>
+                      <CardDescription>Tu técnica de estudio Pomodoro</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-sm text-gray-600">Eventos Totales</p>
+                          <p className="text-2xl font-bold text-blue-600">{statsData.pomodoro_metrics.total_events}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm text-gray-600">Pausas Automáticas</p>
+                          <p className="text-2xl font-bold text-orange-600">{statsData.pomodoro_metrics.auto_pauses}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm text-gray-600">Tiempo Efectivo</p>
+                          <p className="text-2xl font-bold text-green-600">
+                            {Math.floor(statsData.pomodoro_metrics.effective_minutes / 60)}h {statsData.pomodoro_metrics.effective_minutes % 60}m
+                          </p>
+                        </div>
+                      </div>
+                      {statsData.pomodoro_metrics.total_events > 0 && (
+                        <div className="mt-4 pt-4 border-t">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">Tasa de Éxito</span>
+                            <span className="font-semibold text-green-600">
+                              {Math.round(
+                                ((statsData.pomodoro_metrics.total_events - statsData.pomodoro_metrics.auto_pauses) / 
+                                statsData.pomodoro_metrics.total_events) * 100
+                              )}%
+                            </span>
+                          </div>
+                          <Progress 
+                            value={
+                              ((statsData.pomodoro_metrics.total_events - statsData.pomodoro_metrics.auto_pauses) / 
+                              statsData.pomodoro_metrics.total_events) * 100
+                            } 
+                            className="mt-2" 
+                          />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Sin Datos</CardTitle>
+                    <CardDescription>No hay estadísticas disponibles para el período seleccionado</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600">Comienza a usar la plataforma para ver tus estadísticas aquí.</p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 

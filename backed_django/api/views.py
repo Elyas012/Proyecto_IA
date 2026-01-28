@@ -54,7 +54,7 @@ User = get_user_model()
 # ==========================================
 
 # ⚠️ PEGA TU API KEY AQUÍ O ÚSALA DESDE VARIABLES DE ENTORNO
-GEMINI_API_KEY = "kEY-AQUI"
+GEMINI_API_KEY = "AIzaSyB_66tL4aj5yJ5H4Yjbq6IeLkBfEYWWyRM"
 
 MODEL_PATH = os.path.join(settings.BASE_DIR, 'api', 'model_lstm_distractions_FIXED.h5')
 SCALER_PATH = os.path.join(settings.BASE_DIR, 'api', 'scaler.pkl')
