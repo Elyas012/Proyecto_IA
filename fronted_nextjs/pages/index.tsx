@@ -16,7 +16,8 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
-    axios.get('http://localhost:8000/api/messages/')
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    axios.get(`${apiUrl}/messages/`)
       .then(response => {
         setMessages(response.data);
       })
