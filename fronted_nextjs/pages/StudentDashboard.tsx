@@ -1583,3 +1583,5 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
     </div>
   );
 }
+
+export default StudentDashboard;

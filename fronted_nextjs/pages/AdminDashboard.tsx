@@ -1053,3 +1053,5 @@ const filteredUsers = users.filter((user) =>
     </div>
   );
 }
+
+export default AdminDashboard;

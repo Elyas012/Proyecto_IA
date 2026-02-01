@@ -864,3 +864,5 @@ export function StudentReport({ onBack }: StudentReportProps) {
     </div>
   );
 }
+
+export default StudentReport;

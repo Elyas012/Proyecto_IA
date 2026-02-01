@@ -824,3 +824,5 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     </div>
   );
 }
+
+export default TeacherDashboard;

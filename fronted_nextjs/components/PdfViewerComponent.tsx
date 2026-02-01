@@ -1,17 +1,17 @@
 // fronted_nextjs/components/PdfViewerComponent.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { pdfjs } from 'react-pdf';
 
 // Dynamically import react-pdf components with SSR disabled
 const Document = dynamic(() => import('react-pdf').then((mod) => mod.Document), { ssr: false });
 const Page = dynamic(() => import('react-pdf').then((mod) => mod.Page), { ssr: false });
-const pdfjs = dynamic(() => import('pdfjs-dist/build/pdf'), { ssr: false });
 
 // This line is crucial for react-pdf to find its worker.
 // The path might need adjustment based on your project's setup.
 // If you encounter issues, try different paths or check react-pdf docs.
 if (typeof window !== 'undefined') {
-  (pdfjs as any).GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js`;
+  pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 }
 
 interface PdfViewerProps {
