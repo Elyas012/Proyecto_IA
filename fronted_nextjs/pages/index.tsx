@@ -14,6 +14,7 @@ interface Message {
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
@@ -23,6 +24,7 @@ export default function Home() {
       })
       .catch(error => {
         console.error('There was an error fetching the messages!', error);
+        setError('No se pudo cargar el contenido desde el backend.');
       });
   }, []);
 
@@ -34,6 +36,11 @@ export default function Home() {
         <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50 mb-8">
           Messages from Django
         </h1>
+        {error && (
+          <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+            {error}
+          </p>
+        )}
         <ul className="list-disc list-inside">
           {messages.map(message => (
             <li key={message.id} className="text-lg leading-8 text-zinc-600 dark:text-zinc-400">
@@ -41,6 +48,11 @@ export default function Home() {
             </li>
           ))}
         </ul>
+        {messages.length === 0 && !error && (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Sin mensajes por ahora.
+          </p>
+        )}
       </main>
     </div>
   );
