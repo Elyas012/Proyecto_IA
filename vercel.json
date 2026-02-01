@@ -1,5 +1,4 @@
 {
-  "rootDirectory": "fronted_nextjs",
   "buildCommand": "npm run build",
   "outputDirectory": ""
 }
