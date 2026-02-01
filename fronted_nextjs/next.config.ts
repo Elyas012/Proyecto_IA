@@ -10,10 +10,23 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // Asegurar que las rutas estén correctamente configuradas
   trailingSlash: false,
   poweredByHeader: false,
+  experimental: {
+    optimizePackageImports: ["@radix-ui"],
+  },
+  // Configuración de redirecciones
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        destination: '/',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
+
 
