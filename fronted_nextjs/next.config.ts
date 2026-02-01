@@ -11,6 +11,6 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
     optimizePackageImports: ["@radix-ui"],
-export default nextConfig;
-
+  },
+};
 
