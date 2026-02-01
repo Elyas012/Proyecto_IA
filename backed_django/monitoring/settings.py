@@ -12,6 +12,7 @@ env = environ.Env(
     GOOGLE_OAUTH_CLIENT_SECRET=(str, ''),
     FACEBOOK_APP_ID=(str, ''),
     FACEBOOK_APP_SECRET=(str, ''),
+    ALLOWED_HOSTS=(str, 'localhost,127.0.0.1'),
 )
 
 # Read .env file if it exists
@@ -22,7 +23,7 @@ if os.path.exists(env_file):
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = env('SECRET_KEY', default='django-insecure-ulki&jln3%9)%7-tp=ubno5hsv_etmaa+02ysl)^f^@^)4xe_a')
 DEBUG = env('DEBUG')
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env('ALLOWED_HOSTS').split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -71,27 +72,26 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'monitoring.wsgi.application'
 
-# Database: MySQL en XAMPP
-# Crea antes la BD vacía `proyecto_ia` en phpMyAdmin.
+# Database: MySQL con soporte para Railway
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'proyecto_ia',   # nombre de tu BD
-        'USER': 'root',          # usuario MySQL
-        'PASSWORD': '',          # contraseña MySQL
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
+        'ENGINE': env('DB_ENGINE', default='django.db.backends.mysql'),
+        'NAME': env('DB_NAME', default='proyecto_ia'),
+        'USER': env('DB_USER', default='root'),
+        'PASSWORD': env('DB_PASSWORD', default=''),
+        'HOST': env('DB_HOST', default='127.0.0.1'),
+        'PORT': env('DB_PORT', default='3306'),
         'OPTIONS': {
             'charset': 'utf8mb4',
         },
     }
 }
-# Configuración típica recomendada para usar MySQL como backend en Django.[web:1][web:2][web:37]
 
-# CORS (para Next.js en localhost:3000)
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-]
+# CORS (para Next.js en localhost:3000 y Vercel)
+CORS_ALLOWED_ORIGINS = env(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:3000'
+).split(',')
 
 # Django REST Framework configuration
 REST_FRAMEWORK = {
@@ -130,7 +130,11 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# WhiteNoise para servir archivos estáticos en producción
+MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -148,6 +152,16 @@ GOOGLE_OAUTH_REDIRECT_URI = env('GOOGLE_OAUTH_REDIRECT_URI', default='http://loc
 # Facebook OAuth Configuration
 FACEBOOK_APP_ID = env('FACEBOOK_APP_ID')
 FACEBOOK_APP_SECRET = env('FACEBOOK_APP_SECRET')
+
+# Security settings for production
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_SECURITY_POLICY = {
+        "default-src": ("'self'",),
+    }
 
 # Definir AUTH_USER_MODEL al inicio del proyecto es la práctica recomendada
 # cuando se usa un modelo de usuario customizado.[web:23][web:31]
