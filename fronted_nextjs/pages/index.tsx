@@ -17,7 +17,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://proyectoia-production.up.railway.app/api';
     axios.get(`${apiUrl}/messages/`)
       .then(response => {
         setMessages(response.data);
