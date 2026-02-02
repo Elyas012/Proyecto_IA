@@ -1,2 +1,2 @@
-release: python manage.py migrate
-web: gunicorn monitoring.wsgi --log-file - --bind 0.0.0.0:$PORT
+release: python backed_django/manage.py migrate
+web: gunicorn --chdir backed_django monitoring.wsgi --log-file - --bind 0.0.0.0:$PORT
