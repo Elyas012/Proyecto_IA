@@ -25,6 +25,16 @@ SECRET_KEY = env('SECRET_KEY', default='django-insecure-ulki&jln3%9)%7-tp=ubno5h
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env('ALLOWED_HOSTS').split(',')
 
+# ---------- Proxy / SSL headers (important for Railway behind proxy) ----------
+# Tell Django to trust the X-Forwarded-Proto header from the proxy (Railway)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
+# Avoid automatic slash redirects for API endpoints (prevents OPTIONS -> 301)
+APPEND_SLASH = False
+# -----------------------------------------------------------------------------
+
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -88,9 +98,10 @@ DATABASES = {
 }
 
 # CORS (para Next.js en localhost:3000 y Vercel)
+# Default ahora incluye localhost y el dominio Vercel; en Railway sobreescribe con la variable de entorno.
 CORS_ALLOWED_ORIGINS = env(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000'
+    default='http://localhost:3000,https://proyecto-ia-ruby.vercel.app'
 ).split(',')
 
 CORS_ALLOW_METHODS = [
@@ -179,14 +190,15 @@ FACEBOOK_APP_ID = env('FACEBOOK_APP_ID')
 FACEBOOK_APP_SECRET = env('FACEBOOK_APP_SECRET')
 
 # Security settings for production
+# Hacemos que este comportamiento sea configurable vía variable de entorno.
+# En Railway no habilites SECURE_SSL_REDIRECT (déjalo en False) porque Railway maneja HTTPS en el proxy.
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=False)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_SECURITY_POLICY = {
-        "default-src": ("'self'",),
-    }
+    # No forzamos CSP por defecto aquí (puedes añadir una política CSP específica si la necesitas).
+    # SECURE_CONTENT_SECURITY_POLICY = { "default-src": ("'self'",), }
 
 # Definir AUTH_USER_MODEL al inicio del proyecto es la práctica recomendada
 # cuando se usa un modelo de usuario customizado.[web:23][web:31]
