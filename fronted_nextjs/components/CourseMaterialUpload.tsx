@@ -57,7 +57,7 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
     setUploading(true);
 
     try {
-      await api.post('/course-materials/', formData, {
+      await api.post('/course-materials', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           Authorization: `Token ${token}`,

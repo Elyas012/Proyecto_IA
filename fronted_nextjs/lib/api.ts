@@ -45,7 +45,7 @@ api.interceptors.response.use(
 );
 
 export const getCourseMaterials = async (courseId: string) => {
-  const response = await api.get(`/course-materials/by-course/${courseId}/`);
+  const response = await api.get(`/course-materials/by-course/${courseId}`);
   return response.data;
 };
 

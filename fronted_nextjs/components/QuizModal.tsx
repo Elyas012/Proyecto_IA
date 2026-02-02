@@ -55,7 +55,7 @@
         setLoading(true);
         try {
         // ✅ ESTA ES LA RUTA CORRECTA QUE COINCIDE CON TU URLS.PY
-        const res = await api.get(`/course-materials/${materialId}/quiz/`); 
+        const res = await api.get(`/course-materials/${materialId}/quiz`); 
         setQuiz(res.data);
         } catch (e) {
         toast.error("Este material no tiene evaluación asignada.");
@@ -69,7 +69,7 @@
         if (!quiz) return;
         setLoading(true);
         try {
-        const res = await api.post('/student/submit-quiz/', {
+        const res = await api.post('/student/submit-quiz', {
             quiz_id: quiz.quiz_id,
             answers: answers
         });

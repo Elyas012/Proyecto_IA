@@ -79,15 +79,15 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
         const token = localStorage.getItem('authToken');
         setToken(token);
         // Perfil autoritativo desde el backend (MySQL)
-        const meResp = await api.get('/auth/me/');
+        const meResp = await api.get('/auth/me');
         setTeacherProfile(meResp.data);
 
         // Overview: números agregados (clases, estudiantes, atención promedio)
-        const ov = await api.get('/teacher/overview/');
+        const ov = await api.get('/teacher/overview');
         setOverview(ov.data);
 
         // Lista de estudiantes detallada
-        const response = await api.get('/teacher/students/');
+        const response = await api.get('/teacher/students');
         setStudents(response.data);
       } catch (error) {
         console.error('Error loading teacher data:', error);
@@ -167,7 +167,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   useEffect(() => {
     const loadSessions = async () => {
       try {
-        const resp = await api.get('/teacher/class-sessions/');
+        const resp = await api.get('/teacher/class-sessions');
         setSessions(resp.data);
         const byCourse: Record<number, any> = {};
         resp.data.forEach((s: any) => {

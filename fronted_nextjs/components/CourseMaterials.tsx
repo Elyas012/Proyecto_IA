@@ -134,7 +134,7 @@ const CourseMaterials = ({
         setGeneratingId(materialId);
         toast.info("Gemini está leyendo el documento...");
         try {
-            await api.post('/teacher/generate-quiz/', { material_id: materialId });
+            await api.post('/teacher/generate-quiz', { material_id: materialId });
             toast.success("¡Evaluación generada con IA!");
             fetchMaterials(); 
         } catch (error) {
@@ -153,7 +153,7 @@ const CourseMaterials = ({
 
         try {
             // Llamada a la ruta que corregimos en urls.py
-            const response = await api.get(`/course-materials/${materialId}/quiz/`);
+            const response = await api.get(`/course-materials/${materialId}/quiz`);
             setQuizData(response.data);
         } catch (error) {
             console.error(error);
@@ -182,7 +182,7 @@ const CourseMaterials = ({
 
         setSubmittingQuiz(true);
         try {
-            const response = await api.post('/student/submit-quiz/', {
+            const response = await api.post('/student/submit-quiz', {
                 quiz_id: quizData.quiz_id,
                 answers: quizAnswers
             });

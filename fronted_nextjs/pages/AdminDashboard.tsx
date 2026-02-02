@@ -110,13 +110,13 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         if (!token) return;
 
         const [usersRes, sessionsRes] = await Promise.all([
-          api.get("/admin/users/"),
-          api.get("/admin/active-sessions/"),
+          api.get("/admin/users"),
+          api.get("/admin/active-sessions"),
         ]);
         setUsers(usersRes.data);
         setActiveSessions(sessionsRes.data);
 
-        const coursesRes = await api.get("/admin/courses/");
+        const coursesRes = await api.get("/admin/courses");
         setCourses(coursesRes.data);
       } catch (error) {
         console.error("Error loading admin data:", error);
@@ -129,7 +129,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const handleCreateCourse = async () => {
     if (!newCourse.code || !newCourse.name) return;
     try {
-      const resp = await api.post("/admin/courses/", newCourse);
+      const resp = await api.post("/admin/courses", newCourse);
       setCourses((prev) => [...prev, resp.data]);
       setNewCourse({ code: "", name: "", description: "" });
       toast.success("Curso creado exitosamente");
@@ -144,7 +144,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     const teacherId = selectedTeacherByCourse[courseId];
     if (!teacherId) return;
     try {
-      await api.post("/admin/assign-teacher/", {
+      await api.post("/admin/assign-teacher", {
         course_id: courseId,
         teacher_id: teacherId,
       });
@@ -161,7 +161,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     const studentId = selectedStudentByCourse[courseId];
     if (!studentId) return;
     try {
-      await api.post("/admin/enroll-student/", {
+      await api.post("/admin/enroll-student", {
         course_id: courseId,
         student_id: studentId,
       });

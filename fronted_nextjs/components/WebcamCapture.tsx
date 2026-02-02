@@ -52,7 +52,7 @@ export default function WebcamCapture({
   onFeaturesExtracted,
   onAttentionUpdate,
   classSessionId,
-  modelEndpoint = "http://localhost:8000/api/predict-distractions/",
+  modelEndpoint = "http://localhost:8000/api/predict-distractions",
 }: WebcamCaptureProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
