@@ -123,7 +123,7 @@ const handleLogin = async (e: React.FormEvent) => {
   setSuccessMessage("Iniciando sesión...");
 
   try {
-    const response = await api.post("/auth/login", {
+    const response = await api.post("/auth/login/", {
       email: loginData.email,
       password: loginData.password,
     });
@@ -165,7 +165,7 @@ const handleGoogleLogin = async (credentialResponse: CredentialResponse) => {
     setSuccessMessage("Autenticando con Google...");
     setErrors({});
     
-    const response = await api.post("/auth/google", {
+    const response = await api.post("/auth/google/", {
       token: credentialResponse.credential,
     });
     
@@ -208,7 +208,7 @@ const handleFacebookLogin = async (response: any) => {
     setSuccessMessage("Autenticando con Facebook...");
     setErrors({});
     
-    const apiResponse = await api.post("/auth/facebook", {
+    const apiResponse = await api.post("/auth/facebook/", {
       accessToken: response.accessToken,
     });
     
@@ -283,7 +283,7 @@ const handleRegister = async (e: React.FormEvent) => {
   setSuccessMessage("Registrando...");
 
   try {
-    const response = await api.post("/auth/register", {
+    const response = await api.post("/auth/register/", {
       fullName: registerData.fullName,
       email: registerData.email,
       password: registerData.password,

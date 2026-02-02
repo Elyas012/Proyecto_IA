@@ -90,7 +90,7 @@ export function StudentReport({ onBack }: StudentReportProps) {
     setReportLoading(true);
     try {
       const api = (await import('../lib/api')).default;
-      const resp = await api.get('/student/report', { params: { period: selectedPeriod, subject: selectedSubject } });
+      const resp = await api.get('/student/report/', { params: { period: selectedPeriod, subject: selectedSubject } });
       setReportData(resp.data);
 
       // Map to UI state with safe fallbacks and camelCase conversion

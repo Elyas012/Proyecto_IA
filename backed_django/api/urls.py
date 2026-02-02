@@ -12,42 +12,42 @@ router.register(r'course-materials', CourseMaterialViewSet, basename='coursemate
 
 urlpatterns = router.urls + [
     # Auth
-    path('auth/login', LoginView.as_view(), name='api-login'),
-    path('auth/register', RegisterView.as_view(), name='api-register'),
-    path('auth/google', GoogleAuthView.as_view(), name='api-google-auth'),
-    path('auth/facebook', FacebookAuthView.as_view(), name='api-facebook-auth'),
-    path('auth/me', current_user, name='api-me'),
+    path('auth/login/', LoginView.as_view(), name='api-login'),
+    path('auth/register/', RegisterView.as_view(), name='api-register'),
+    path('auth/google/', GoogleAuthView.as_view(), name='api-google-auth'),
+    path('auth/facebook/', FacebookAuthView.as_view(), name='api-facebook-auth'),
+    path('auth/me/', current_user, name='api-me'),
     
     # Student
-    path('student/courses', student_courses, name='student-courses'),
-    path('student/record-attention', record_attention, name='record-attention'),
-    path('student/pomodoro-events', pomodoro_events, name='pomodoro-events'),
-    path('student/pomodoro-metrics', pomodoro_metrics, name='pomodoro-metrics'),
-    path('student/pomodoro-status', views.pomodoro_status, name='pomodoro-status'),
-    path('student/feature-records', feature_records, name='feature-records'),
-    path('student/report', views.student_report, name='student-report'),
+    path('student/courses/', student_courses, name='student-courses'),
+    path('student/record-attention/', record_attention, name='record-attention'),
+    path('student/pomodoro-events/', pomodoro_events, name='pomodoro-events'),
+    path('student/pomodoro-metrics/', pomodoro_metrics, name='pomodoro-metrics'),
+    path('student/pomodoro-status/', views.pomodoro_status, name='pomodoro-status'),
+    path('student/feature-records/', feature_records, name='feature-records'),
+    path('student/report/', views.student_report, name='student-report'),
     
     # Teacher & Admin
-    path('teacher/students', teacher_students, name='teacher-students'),
-    path('teacher/overview', teacher_overview, name='teacher-overview'),
-    path('admin/users', admin_users, name='admin-users'),
-    path('admin/active-sessions', admin_active_sessions, name='admin-active-sessions'),
-    path('admin/courses', views.admin_courses),
-    path('teacher/class-sessions', views.teacher_class_sessions),
-    path('teacher/student-courses', views.teacher_student_courses),
-    path("admin/assign-teacher", views.admin_assign_teacher, name="admin-assign-teacher"),
-    path("admin/enroll-student", views.admin_enroll_student, name="admin-enroll-student"),
+    path('teacher/students/', teacher_students, name='teacher-students'),
+    path('teacher/overview/', teacher_overview, name='teacher-overview'),
+    path('admin/users/', admin_users, name='admin-users'),
+    path('admin/active-sessions/', admin_active_sessions, name='admin-active-sessions'),
+    path('admin/courses/', views.admin_courses),
+    path('teacher/class-sessions/', views.teacher_class_sessions),
+    path('teacher/student-courses/', views.teacher_student_courses),
+    path("admin/assign-teacher/", views.admin_assign_teacher, name="admin-assign-teacher"),
+    path("admin/enroll-student/", views.admin_enroll_student, name="admin-enroll-student"),
 
     # --- ZONA QUIZ (CORREGIDA) ---
-    path('teacher/generate-quiz', views.generate_quiz_ai),
+    path('teacher/generate-quiz/', views.generate_quiz_ai),
     
     # ⚠️ CAMBIO IMPORTANTE AQUÍ:
     # Antes tenías: 'student/quiz/<int:material_id>/'
     # Ahora usamos esta ruta que es la que tu botón "Prueba" seguramente está buscando:
-    path('course-materials/<int:material_id>/quiz', views.get_quiz, name='get-quiz'),
+    path('course-materials/<int:material_id>/quiz/', views.get_quiz, name='get-quiz'),
     
-    path('student/submit-quiz', views.submit_quiz),
+    path('student/submit-quiz/', views.submit_quiz),
 
     # AI / LSTM
-    path('predict-distractions', predict_distractions, name='predict-distractions'),
+    path('predict-distractions/', predict_distractions, name='predict-distractions'),
 ]

@@ -165,7 +165,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
 
   const loadUser = async () => {
     try {
-      const resp = await api.get('/auth/me');
+      const resp = await api.get('/auth/me/');
       setUser(resp.data);
     } catch (err) {
       console.warn('No authenticated user (me) or error', err);
@@ -175,7 +175,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
 
   const loadPomodoroMetrics = async () => {
     try {
-      const resp = await api.get('/student/pomodoro-metrics');
+      const resp = await api.get('/student/pomodoro-metrics/');
       setPomodoroMetrics(resp.data);
     } catch (err) {
       console.warn('Could not load pomodoro metrics', err);
@@ -186,7 +186,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const loadStatistics = async (period: 'week' | 'month' | 'semester' = 'month') => {
     setStatsLoading(true);
     try {
-      const response = await api.get('/student/report', {
+      const response = await api.get('/student/report/', {
         params: { period }
       });
       setStatsData(response.data);
@@ -205,7 +205,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
         toast.warning('No token presente. Inicia sesión o pega un token en la opción correspondiente.');
         throw new Error('No auth token');
       }
-      const response = await api.get('/student/courses');
+      const response = await api.get('/student/courses/');
       setCourses(response.data);
     } catch (error) {
       console.error('Error loading courses:', error);
@@ -245,7 +245,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
       }
 
       try {
-        const response = await api.get(`/student/pomodoro-status?class_session_id=${selectedCourse.id}`);
+        const response = await api.get(`/student/pomodoro-status/?class_session_id=${selectedCourse.id}`);
         const data: PomodoroBackendStatus = response.data;
         setBackendPomodoroStatus(data);
 
@@ -349,7 +349,7 @@ useEffect(() => {
           }
           
           // Notificar al backend
-          api.post('/student/pomodoro-events', { 
+          api.post('/student/pomodoro-events/', { 
             class_session_id: selectedCourse.id, 
             event_type: 'auto_pause', 
             reason: 'work_session_ended',
@@ -374,7 +374,7 @@ useEffect(() => {
           setPomodoroTimeLeft(25 * 60); // 25 minutos de trabajo
           
           // Notificar al backend
-          api.post('/student/pomodoro-events', { 
+          api.post('/student/pomodoro-events/', { 
             class_session_id: selectedCourse.id, 
             event_type: 'start', 
             reason: 'pause_ended',
@@ -509,7 +509,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
         
         // Record auto-pause event to backend
         if (selectedCourse && isAnalyzing) {
-          api.post('/student/pomodoro-events', { 
+          api.post('/student/pomodoro-events/', { 
             class_session_id: selectedCourse.id, 
             event_type: 'auto_pause', 
             reason: 'low_attention_7s',
@@ -530,7 +530,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
       // Lógica pausa durante descanso (mantiene igual)
       if ((pomodoroPhase === 'descanso-corto' || pomodoroPhase === 'descanso-largo') && 
           isPomodoroActive && selectedCourse && isAnalyzing) {
-        api.post('/student/feature-records', { 
+        api.post('/student/feature-records/', { 
           class_session_id: selectedCourse.id, 
           features: { attentionScore: score }, 
           attention_score: score 
@@ -567,7 +567,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
   if (selectedCourse && isAnalyzing && 
       (!lastReportedRef.current || (now - lastReportedRef.current) > 1000)) {
     lastReportedRef.current = now;
-    api.post('/student/record-attention', { 
+    api.post('/student/record-attention/', { 
       class_session_id: selectedCourse.id, 
       attention_score: score,
       raw_features: [], 
@@ -604,10 +604,10 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
     try {
       if (newPomodoroActiveState) {
-        await api.post('/student/pomodoro-events', { class_session_id: selectedCourse.id, event_type: 'start', reason: 'manual_start' });
+        await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'start', reason: 'manual_start' });
         toast.success('Pomodoro iniciado!');
       } else {
-        await api.post('/student/pomodoro-events', { class_session_id: selectedCourse.id, event_type: 'manual_pause', reason: 'manual_pause_request' });
+        await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'manual_pause', reason: 'manual_pause_request' });
         toast.info('Pomodoro pausado.');
       }
     } catch (error) {
@@ -1170,7 +1170,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                             onClick={async () => {
                               if (!selectedCourse) return;
                               try {
-                                const res = await api.get('/student/pomodoro-metrics');
+                                const res = await api.get('/student/pomodoro-metrics/');
                                 const d = res.data;
                                 toast(`📊 Eventos: ${d.total_events} · Pausas auto: ${d.auto_pauses} · Tiempo efectivo: ${Math.round(d.effective_seconds/60)} min`);
                               } catch (e) {
