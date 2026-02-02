@@ -114,6 +114,10 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# Permitir credenciales y preflight automático
+CORS_ALLOW_CREDENTIALS = True
+CORS_PREFLIGHT_MAX_AGE = 86400
+
 # Django REST Framework configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
