@@ -22,7 +22,9 @@ import {
   Eye,
   Filter,
   Search,
-  Upload
+  Upload,
+  Menu,
+  X
 } from "lucide-react";
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from "recharts";
 
@@ -59,6 +61,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   const [token, setToken] = useState<string | null>(null);
   const [selectedCourseForMaterials, setSelectedCourseForMaterials] = useState<number | null>(null);
   const [materialChangeCounter, setMaterialChangeCounter] = useState(0); // Added for re-rendering materials
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [teacherProfile, setTeacherProfile] = useState<{
     id?: number;
@@ -183,17 +186,40 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
+      {/* Mobile Header */}
+      <div className="lg:hidden bg-gradient-to-r from-gray-900 to-black text-white p-4 flex items-center justify-between sticky top-0 z-50">
+        <div>
+          <h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-500 bg-clip-text text-transparent">FocusLearn</h2>
+          <p className="text-gray-400 text-xs">Panel Docente</p>
+        </div>
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="text-white p-2 hover:bg-gray-800 rounded-lg transition-colors"
+        >
+          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </div>
+      
       <div className="flex">
         {/* Sidebar */}
-        <aside className="w-64 min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl">
-          <div className="mb-8">
+        <aside className={`
+          fixed lg:static inset-y-0 left-0 z-40
+          w-64 bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl
+          transform transition-transform duration-300 ease-in-out
+          lg:transform-none
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}>
+          <div className="mb-8 hidden lg:block">
             <h2 className="bg-gradient-to-r from-blue-400 to-blue-500 bg-clip-text text-transparent">FocusLearn</h2>
             <p className="text-gray-400 text-sm mt-1">Panel Docente</p>
           </div>
 
           <nav className="space-y-2">
             <button
-              onClick={() => setCurrentView("dashboard")}
+              onClick={() => {
+                setCurrentView("dashboard");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "dashboard" 
                   ? "bg-blue-500 text-white" 
@@ -205,7 +231,10 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
             </button>
 
             <button
-              onClick={() => setCurrentView("students")}
+              onClick={() => {
+                setCurrentView("students");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "students" 
                   ? "bg-blue-500 text-white" 
@@ -217,7 +246,10 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
             </button>
 
             <button
-              onClick={() => setCurrentView("stats")}
+              onClick={() => {
+                setCurrentView("stats");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "stats" 
                   ? "bg-blue-500 text-white" 
@@ -229,7 +261,10 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
             </button>
 
             <button
-              onClick={() => setCurrentView("materials")}
+              onClick={() => {
+                setCurrentView("materials");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "materials"
                   ? "bg-blue-500 text-white"
@@ -241,7 +276,10 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
             </button>
 
             <button
-              onClick={() => setCurrentView("profile")}
+              onClick={() => {
+                setCurrentView("profile");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "profile" 
                   ? "bg-blue-500 text-white" 
@@ -256,7 +294,10 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           <div className="mt-auto pt-8">
             <Separator className="mb-4 bg-gray-700" />
             <button 
-              onClick={onLogout}
+              onClick={() => {
+                onLogout?.();
+                setIsMobileMenuOpen(false);
+              }}
               className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors"
             >
               <LogOut className="w-5 h-5" />
@@ -265,23 +306,31 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           </div>
         </aside>
 
+        {/* Overlay para cerrar menú en móvil */}
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
         {/* Main Content */}
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {/* Dashboard View */}
           {currentView === "dashboard" && (
             <div>
-              <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Dashboard del Docente</h1>
-                <p className="text-gray-600">Resumen general de la atención estudiantil</p>
+              <div className="mb-6 sm:mb-8">
+                <h1 className="text-2xl sm:text-3xl text-gray-900 mb-2">Dashboard del Docente</h1>
+                <p className="text-sm sm:text-base text-gray-600">Resumen general de la atención estudiantil</p>
                 {teacherProfile && (
-                  <div className="mt-3 text-sm text-gray-700">
+                  <div className="mt-3 text-xs sm:text-sm text-gray-700">
                     <strong>{teacherProfile.name}</strong> — <span className="text-gray-500">{teacherProfile.email}</span>
                   </div>
                 )}
               </div>
 
               {/* Filters */}
-              <div className="flex flex-wrap gap-4 mb-8">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 mb-6 sm:mb-8">
                 <div className="flex items-center space-x-2">
                   <Filter className="w-5 h-5 text-gray-500" />
                   <Select value={selectedClass} onValueChange={setSelectedClass}>

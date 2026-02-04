@@ -23,7 +23,9 @@ import {
   Eye,
   Smile,
   Brain,
-  PlayCircle
+  PlayCircle,
+  Menu,
+  X
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StudentReport } from "./StudentReport";
@@ -126,6 +128,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [isFeaturesExtracted, setIsFeaturesExtracted] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState(0);
   const isFeaturesExtractedRef = useRef<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Estados para Quiz con IA
   const [isQuizOpen, setIsQuizOpen] = useState(false);
@@ -620,16 +623,41 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
       <Toaster position="top-right" />
+      
+      {/* Mobile Header */}
+      <div className="lg:hidden bg-gradient-to-r from-gray-900 to-black text-white p-4 flex items-center justify-between sticky top-0 z-50">
+        <div>
+          <h2 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-cyan-500 bg-clip-text text-transparent">FocusLearn</h2>
+          <p className="text-gray-400 text-xs">Panel Estudiante</p>
+        </div>
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="text-white p-2 hover:bg-gray-800 rounded-lg transition-colors"
+        >
+          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </div>
+      
       <div className="flex">
-        <aside className="w-64 min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl">
-          <div className="mb-8">
+        {/* Sidebar - Desktop y Mobile */}
+        <aside className={`
+          fixed lg:static inset-y-0 left-0 z-40
+          w-64 bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl
+          transform transition-transform duration-300 ease-in-out
+          lg:transform-none
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}>
+          <div className="mb-8 hidden lg:block">
             <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-cyan-500 bg-clip-text text-transparent">FocusLearn</h2>
             <p className="text-gray-400 text-sm mt-1">Panel Estudiante</p>
           </div>
 
           <nav className="space-y-2">
             <button
-              onClick={() => setCurrentView("dashboard")}
+              onClick={() => {
+                setCurrentView("dashboard");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "dashboard" 
                   ? "bg-cyan-500 text-white" 
@@ -641,7 +669,10 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
             </button>
 
             <button
-              onClick={() => setCurrentView("classes")}
+              onClick={() => {
+                setCurrentView("classes");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "classes" 
                   ? "bg-cyan-500 text-white" 
@@ -656,7 +687,10 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
             </button>
 
             <button
-              onClick={() => setCurrentView("stats")}
+              onClick={() => {
+                setCurrentView("stats");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "stats" 
                   ? "bg-cyan-500 text-white" 
@@ -668,7 +702,10 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
             </button>
 
             <button
-              onClick={() => setCurrentView("report")}
+              onClick={() => {
+                setCurrentView("report");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "report" 
                   ? "bg-cyan-500 text-white" 
@@ -680,7 +717,10 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
             </button>
 
             <button
-              onClick={() => setCurrentView("profile")}
+              onClick={() => {
+                setCurrentView("profile");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "profile" 
                   ? "bg-cyan-500 text-white" 
@@ -695,7 +735,10 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
           <div className="mt-auto pt-8">
             <Separator className="mb-4 bg-gray-700" />
             <button 
-              onClick={onLogout}
+              onClick={() => {
+                onLogout?.();
+                setIsMobileMenuOpen(false);
+              }}
               className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors"
             >
               <LogOut className="w-5 h-5" />
@@ -704,15 +747,23 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
           </div>
         </aside>
 
-        <main className="flex-1 p-8">
+        {/* Overlay para cerrar menú en móvil */}
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {currentView === "dashboard" && (
             <div>
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Bienvenido, {user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}` : (user.username || user.email)) : 'Estudiante'}</h1>
-                <p className="text-gray-600">Selecciona un curso para comenzar</p>
+              <div className="mb-6 sm:mb-8">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Bienvenido, {user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}` : (user.username || user.email)) : 'Estudiante'}</h1>
+                <p className="text-sm sm:text-base text-gray-600">Selecciona un curso para comenzar</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
                 <Card className="border-l-4 border-l-cyan-500">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm text-gray-600">Eventos Pomodoro</CardTitle>
@@ -857,9 +908,9 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
           {currentView === "classes" && (
             <div>
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Sala de Clase Virtual</h1>
-                <p className="text-gray-600">
+              <div className="mb-6 sm:mb-8">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Sala de Clase Virtual</h1>
+                <p className="text-sm sm:text-base text-gray-600">
                   {selectedCourse 
                     ? `Configuración y análisis - ${selectedCourse.name}`
                     : "Activa tu cámara y selecciona un curso para comenzar"
@@ -867,7 +918,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   <Card>
                     <CardHeader>
@@ -880,17 +931,17 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                           <motion.div
                             initial={{ opacity: 0, y: -20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="absolute top-4 right-4 z-10"
+                            className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10 max-w-[calc(100%-1rem)] sm:max-w-none"
                           >
                             <Card className="bg-gradient-to-br from-cyan-500 to-cyan-600 border-cyan-700 shadow-lg">
-                              <CardContent className="p-4">
-                                <div className="flex items-center gap-3">
-                                  <Clock className="w-6 h-6 text-white" />
+                              <CardContent className="p-2 sm:p-4">
+                                <div className="flex items-center gap-2 sm:gap-3">
+                                  <Clock className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                                   <div>
-                                    <p className="text-sm text-cyan-100">
+                                    <p className="text-xs sm:text-sm text-cyan-100">
                                       {getPhaseName()} #{pomodoroSession}
                                     </p>
-                                    <p className="text-2xl font-bold text-white">
+                                    <p className="text-lg sm:text-2xl font-bold text-white">
                                       {formatPomodoroTime(pomodoroTimeLeft)}
                                     </p>
                                   </div>
@@ -898,7 +949,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                                     size="sm"
                                     variant="secondary"
                                     onClick={togglePomodoro}
-                                    className="ml-2"
+                                    className="ml-1 sm:ml-2 text-xs sm:text-sm px-2 sm:px-3"
                                   >
                                     {isPomodoroActive ? "Pausar" : "Iniciar"}
                                   </Button>
@@ -906,7 +957,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                               </CardContent>
                             </Card>
                           </motion.div>
-                        )}
+                        )}}
                         
                         <video
                           ref={videoRef}
@@ -994,21 +1045,23 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                         )}
                       </div>
 
-                      <div className="flex gap-4 mt-4">
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4">
                         <Button
                           onClick={toggleCamera}
                           variant={isCameraActive ? "destructive" : "default"}
-                          className="flex-1"
+                          className="flex-1 text-sm sm:text-base"
                         >
                           {isCameraActive ? (
                             <>
                               <CameraOff className="w-4 h-4 mr-2" />
-                              Desactivar Cámara
+                              <span className="hidden sm:inline">Desactivar Cámara</span>
+                              <span className="sm:hidden">Desactivar</span>
                             </>
                           ) : (
                             <>
                               <Camera className="w-4 h-4 mr-2" />
-                              Activar Cámara
+                              <span className="hidden sm:inline">Activar Cámara</span>
+                              <span className="sm:hidden">Activar</span>
                             </>
                           )}
                         </Button>
@@ -1016,18 +1069,20 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                         <Button
                           onClick={isAnalyzing ? stopAnalysis : startAnalysis}
                           variant={isFeaturesExtracted ? "secondary" : "default"}
-                          className="flex-1"
+                          className="flex-1 text-sm sm:text-base"
                           disabled={!isCameraActive || !selectedCourse}
                         >
                           {isAnalyzing ? (
                             <>
                               <PlayCircle className="w-4 h-4 mr-2" />
-                              {isFeaturesExtracted ? "Detener Análisis" : "Procesando..."}
+                              {isFeaturesExtracted ? <span className="hidden sm:inline">Detener Análisis</span> : "Procesando..."}
+                              {isFeaturesExtracted && <span className="sm:hidden">Detener</span>}
                             </>
                           ) : (
                             <>
                               <PlayCircle className="w-4 h-4 mr-2" />
-                              Iniciar Análisis
+                              <span className="hidden sm:inline">Iniciar Análisis</span>
+                              <span className="sm:hidden">Iniciar</span>
                             </>
                           )}
                         </Button>
@@ -1270,21 +1325,23 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
           {currentView === "stats" && (
             <div>
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Estadísticas</h1>
-                <p className="text-gray-600">Tu rendimiento académico</p>
+              <div className="mb-6 sm:mb-8">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Estadísticas</h1>
+                <p className="text-sm sm:text-base text-gray-600">Tu rendimiento académico</p>
               </div>
 
               {/* Filtro de Período */}
-              <div className="mb-6 flex gap-2">
+              <div className="mb-6 flex flex-wrap gap-2">
                 <Button
                   variant={statsPeriod === 'week' ? 'default' : 'outline'}
                   onClick={() => {
                     setStatsPeriod('week');
                     loadStatistics('week');
                   }}
+                  className="text-xs sm:text-sm"
                 >
-                  Última Semana
+                  <span className="hidden sm:inline">Última Semana</span>
+                  <span className="sm:hidden">Semana</span>
                 </Button>
                 <Button
                   variant={statsPeriod === 'month' ? 'default' : 'outline'}
@@ -1292,8 +1349,10 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                     setStatsPeriod('month');
                     loadStatistics('month');
                   }}
+                  className="text-xs sm:text-sm"
                 >
-                  Último Mes
+                  <span className="hidden sm:inline">Último Mes</span>
+                  <span className="sm:hidden">Mes</span>
                 </Button>
                 <Button
                   variant={statsPeriod === 'semester' ? 'default' : 'outline'}
@@ -1301,6 +1360,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                     setStatsPeriod('semester');
                     loadStatistics('semester');
                   }}
+                  className="text-xs sm:text-sm"
                 >
                   Semestre
                 </Button>
@@ -1315,9 +1375,9 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                   </CardContent>
                 </Card>
               ) : statsData ? (
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {/* Tarjetas de Resumen */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     <Card>
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
@@ -1482,7 +1542,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                       <CardDescription>Tu técnica de estudio Pomodoro</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                         <div className="space-y-1">
                           <p className="text-sm text-gray-600">Eventos Totales</p>
                           <p className="text-2xl font-bold text-blue-600">{statsData.pomodoro_metrics.total_events}</p>
@@ -1541,9 +1601,9 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
           {currentView === "profile" && (
             <div>
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Mi Perfil</h1>
-                <p className="text-gray-600">Información de tu cuenta</p>
+              <div className="mb-6 sm:mb-8">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Mi Perfil</h1>
+                <p className="text-sm sm:text-base text-gray-600">Información de tu cuenta</p>
               </div>
 
               <Card>

@@ -25,7 +25,9 @@ import {
   Activity,
   Clock,
   AlertCircle,
-  Shield
+  Shield,
+  Menu,
+  X
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell , Legend} from "recharts";
 import { toast } from "sonner"; // Opcional: si usas sonner para notificaciones, si no, usa alert o console
@@ -74,6 +76,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     email?: string;
     role?: string;
   } | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // datos principales
   const [users, setUsers] = useState<User[]>([]);
@@ -298,17 +301,40 @@ const filteredUsers = users.filter((user) =>
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
+      {/* Mobile Header */}
+      <div className="lg:hidden bg-gradient-to-r from-gray-900 to-black text-white p-4 flex items-center justify-between sticky top-0 z-50">
+        <div>
+          <h2 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent">FocusLearn</h2>
+          <p className="text-gray-400 text-xs">Panel Administrador</p>
+        </div>
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="text-white p-2 hover:bg-gray-800 rounded-lg transition-colors"
+        >
+          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </div>
+      
       <div className="flex">
         {/* Sidebar */}
-        <aside className="w-64 min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl">
-          <div className="mb-8">
+        <aside className={`
+          fixed lg:static inset-y-0 left-0 z-40
+          w-64 bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl
+          transform transition-transform duration-300 ease-in-out
+          lg:transform-none
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}>
+          <div className="mb-8 hidden lg:block">
             <h2 className="bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent">FocusLearn</h2>
             <p className="text-gray-400 text-sm mt-1">Panel Administrador</p>
           </div>
 
           <nav className="space-y-2">
             <button
-              onClick={() => setCurrentView("overview")}
+              onClick={() => {
+                setCurrentView("overview");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "overview" 
                   ? "bg-orange-500 text-white" 
@@ -320,7 +346,10 @@ const filteredUsers = users.filter((user) =>
             </button>
 
             <button
-              onClick={() => setCurrentView("users")}
+              onClick={() => {
+                setCurrentView("users");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "users" 
                   ? "bg-orange-500 text-white" 
@@ -332,7 +361,10 @@ const filteredUsers = users.filter((user) =>
             </button>
 
             <button
-              onClick={() => setCurrentView("sessions")}
+              onClick={() => {
+                setCurrentView("sessions");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "sessions" 
                   ? "bg-orange-500 text-white" 
@@ -344,7 +376,10 @@ const filteredUsers = users.filter((user) =>
             </button>
 
             <button
-              onClick={() => setCurrentView("stats")}
+              onClick={() => {
+                setCurrentView("stats");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 currentView === "stats" 
                   ? "bg-orange-500 text-white" 
@@ -371,7 +406,10 @@ const filteredUsers = users.filter((user) =>
           <div className="mt-auto pt-8">
             <Separator className="mb-4 bg-gray-700" />
             <button 
-              onClick={onLogout}
+              onClick={() => {
+                onLogout?.();
+                setIsMobileMenuOpen(false);
+              }}
               className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors"
             >
               <LogOut className="w-5 h-5" />
@@ -380,33 +418,41 @@ const filteredUsers = users.filter((user) =>
           </div>
         </aside>
 
+        {/* Overlay para cerrar menú en móvil */}
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
         {/* Main Content */}
         <main className="flex-1 flex flex-col">
           {/* Top Bar */}
-          <header className="bg-white border-b px-8 py-4 shadow-sm">
+          <header className="bg-white border-b px-4 sm:px-6 lg:px-8 py-3 sm:py-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-gray-900">Panel de Administración</h1>
-                <p className="text-sm text-gray-600">Gestión completa del sistema FocusLearn</p>
+                <h1 className="text-lg sm:text-xl lg:text-2xl text-gray-900\">Panel de Administración</h1>
+                <p className=\"text-xs sm:text-sm text-gray-600\">Gestión completa del sistema FocusLearn</p>
               </div>
               
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 sm:space-x-4">
                 <button className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                  <Bell className="w-5 h-5" />
+                  <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
                   {notificationCount > 0 && (
-                    <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                    <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">
                       {notificationCount}
                     </span>
                   )}
                 </button>
 
-                <div className="flex items-center space-x-3 pl-4 border-l">
+                <div className="hidden sm:flex items-center space-x-3 pl-4 border-l">
                   <div className="text-right">
                     <p className="text-sm text-gray-900">{displayName}</p>
                     <p className="text-xs text-gray-500">{displayRole}</p>
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white">
-                    <Shield className="w-5 h-5" />
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white">
+                    <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                 </div>
               </div>
@@ -414,16 +460,16 @@ const filteredUsers = users.filter((user) =>
           </header>
 
           {/* Content Area */}
-          <div className="flex-1 p-8 overflow-y-auto">
+          <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
             {/* Resumen */}
             {currentView === "overview" && (
               <div>
-                <div className="mb-8">
-                  <h2 className="text-gray-900 mb-2">Resumen General</h2>
-                  <p className="text-gray-600">Vista global del sistema</p>
+                <div className="mb-6 sm:mb-8">
+                  <h2 className="text-2xl sm:text-3xl text-gray-900 mb-2">Resumen General</h2>
+                  <p className="text-sm sm:text-base text-gray-600">Vista global del sistema</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
                   <Card className="border-l-4 border-l-orange-500">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm text-gray-600">Estudiantes Activos</CardTitle>
@@ -477,14 +523,14 @@ const filteredUsers = users.filter((user) =>
                   </Card>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Atención Promedio Semanal</CardTitle>
-                      <CardDescription>Tendencia de las últimas 5 semanas</CardDescription>
+                      <CardTitle className="text-base sm:text-lg">Atención Promedio Semanal</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">Tendencia de las últimas 5 semanas</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
+                      <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
                         <LineChart data={weeklyAttentionData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                           <XAxis dataKey="week" tick={{ fontSize: 12 }} />
@@ -684,12 +730,12 @@ const filteredUsers = users.filter((user) =>
             {/* Sesiones activas */}
             {currentView === "sessions" && (
               <div>
-                <div className="mb-8">
-                  <h2 className="text-gray-900 mb-2">Clases y Sesiones Activas</h2>
-                  <p className="text-gray-600">Monitoreo en tiempo real</p>
+                <div className="mb-6 sm:mb-8">
+                  <h2 className="text-2xl sm:text-3xl text-gray-900 mb-2">Clases y Sesiones Activas</h2>
+                  <p className="text-sm sm:text-base text-gray-600">Monitoreo en tiempo real</p>
                 </div>
 
-                <div className="grid gap-6">
+                <div className="grid gap-4 sm:gap-6">
                   {activeSessions.map(session => (
                     <Card key={session.id} className="border-l-4 border-l-orange-500">
                       <CardContent className="p-6">
