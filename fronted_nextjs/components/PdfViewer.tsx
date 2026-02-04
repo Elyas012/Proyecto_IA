@@ -5,7 +5,7 @@ interface PdfViewerProps {
     material: {
         id: number;
         title: string;
-        file: string;
+        file_url: string;
     };
     API_URL: string;
 }
@@ -15,14 +15,14 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ material, API_URL }) => {
         <>
             <iframe
                 key={material.id}
-                src={`${API_URL}${material.file}`}
+                src={`${API_URL}${material.file_url}`}
                 className="w-full h-[calc(100%-2rem)]"
                 title={material.title}
             ></iframe>
             <div className="text-center text-sm mt-2">
                 <span>¿Problemas para ver? </span>
                 <a
-                    href={`${API_URL}${material.file}`}
+                    href={`${API_URL}${material.file_url}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline"

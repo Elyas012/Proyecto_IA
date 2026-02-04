@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 interface CourseMaterial {
     id: number;
     title: string;
-    file: string;
+    file_url: string;  // ✅ CAMBIAR de 'file' a 'file_url'
     material_type: 'pdf' | 'video';
     is_active: boolean;
     has_quiz?: boolean;

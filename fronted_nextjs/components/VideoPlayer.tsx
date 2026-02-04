@@ -5,13 +5,13 @@ interface VideoPlayerProps {
     material: {
         id: number;
         title: string;
-        file: string;
+        file_url: string;
     };
     API_URL: string;
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ material, API_URL }) => {
-    const isWmv = material.file.toLowerCase().endsWith('.wmv');
+    const isWmv = material.file_url.toLowerCase().endsWith('.wmv');
 
     return (
         <>
@@ -25,7 +25,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material, API_URL }) => {
                         o puedes descargarlo para verlo con un reproductor externo.
                     </p>
                     <a
-                        href={`${API_URL}${material.file}`}
+                        href={`${API_URL}${material.file_url}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline flex items-center"
@@ -35,7 +35,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material, API_URL }) => {
                     </a>
                 </div>
             ) : (
-                <video controls src={`${API_URL}${material.file}`} className="w-full h-auto" />
+                <video controls src={`${API_URL}${material.file_url}`} className="w-full h-auto" />
             )}
         </>
     );
