@@ -74,15 +74,24 @@ class StudentCourseSerializer(serializers.ModelSerializer):
 class CourseMaterialSerializer(serializers.ModelSerializer):
     # ✅ CAMBIO: Campo calculado para saber si tiene quiz
     has_quiz = serializers.SerializerMethodField()
+    # ✅ NUEVO: URL para descargar el archivo (en lugar de ruta directa)
+    file_url = serializers.SerializerMethodField()
 
     class Meta:
         model = CourseMaterial
         # ✅ CAMBIO: Agregado 'has_quiz' a la lista
-        fields = ['id', 'course', 'title', 'description', 'file', 'file_type', 'is_active', 'uploaded_at', 'has_quiz']
+        fields = ['id', 'course', 'title', 'description', 'file', 'file_type', 'is_active', 'uploaded_at', 'has_quiz', 'file_url']
 
     def get_has_quiz(self, obj):
         """Devuelve True si existe un quiz generado para este material"""
         return hasattr(obj, 'generated_quiz')
+    
+    def get_file_url(self, obj):
+        """Genera la URL para descargar el archivo a través de la API"""
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(f'/api/media/course-materials/{obj.id}/download/')
+        return f'/api/media/course-materials/{obj.id}/download/'
 
     def create(self, validated_data):
         file = validated_data.get('file')
@@ -102,6 +111,8 @@ class CourseMaterialSerializer(serializers.ModelSerializer):
         if 'file_type' in representation:
             representation['material_type'] = representation.pop('file_type')
         
-        if instance.file and hasattr(instance.file, 'url'):
-            representation['file'] = instance.file.url
+        # No exponer el path directo, usar file_url en su lugar
+        if 'file' in representation:
+            representation.pop('file')
+        
         return representation

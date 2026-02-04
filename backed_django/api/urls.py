@@ -3,7 +3,8 @@ from django.urls import path
 from .views import (MessageViewSet, LoginView, RegisterView, GoogleAuthView, FacebookAuthView, student_courses, 
                     record_attention, teacher_students, teacher_overview, admin_users, 
                     admin_active_sessions, pomodoro_events, pomodoro_metrics, 
-                    feature_records, current_user, CourseMaterialViewSet, predict_distractions)
+                    feature_records, current_user, CourseMaterialViewSet, predict_distractions,
+                    download_course_material)
 from . import views
 
 router = DefaultRouter()
@@ -37,6 +38,9 @@ urlpatterns = router.urls + [
     path('teacher/student-courses/', views.teacher_student_courses),
     path("admin/assign-teacher/", views.admin_assign_teacher, name="admin-assign-teacher"),
     path("admin/enroll-student/", views.admin_enroll_student, name="admin-enroll-student"),
+
+    # Media Files (Production-safe)
+    path('media/course-materials/<int:material_id>/download/', download_course_material, name='download-course-material'),
 
     # --- ZONA QUIZ (CORREGIDA) ---
     path('teacher/generate-quiz/', views.generate_quiz_ai),

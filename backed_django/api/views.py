@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 import joblib
 from pypdf import PdfReader
+import mimetypes
 
 # Imports de Django y REST Framework
 from django.conf import settings
@@ -12,7 +13,7 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Avg, Count
 from django.db.models.functions import ExtractHour
@@ -916,6 +917,47 @@ class CourseMaterialViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(materials, many=True)
         return Response(serializer.data)
 
+# ==========================================
+# MEDIA FILE SERVING (PRODUCTION-SAFE)
+# ==========================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def download_course_material(request, material_id):
+    """
+    Sirve archivos de materiales del curso con validación de permisos.
+    Resuelve el problema de que MEDIA_URL no funciona en producción cuando DEBUG=False.
+    """
+    material = get_object_or_404(CourseMaterial, id=material_id)
+    course = material.course
+    
+    # Verificar que el usuario tenga acceso al material
+    is_enrolled = StudentCourse.objects.filter(student=request.user, course=course).exists()
+    is_teacher = ClassSession.objects.filter(teacher=request.user, course=course).exists()
+    is_admin = hasattr(request.user, 'profile') and request.user.profile.role == 'admin'
+    
+    if not (is_enrolled or is_teacher or is_admin):
+        return Response({'detail': 'No tienes permisos para acceder a este material.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Obtener la ruta del archivo
+    file_path = material.file.path
+    
+    # Verificar que el archivo existe
+    if not os.path.exists(file_path):
+        return Response({'detail': 'El archivo no se encontró en el servidor.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Servir el archivo
+    try:
+        file_obj = open(file_path, 'rb')
+        mime_type, _ = mimetypes.guess_type(file_path)
+        mime_type = mime_type or 'application/octet-stream'
+        
+        response = FileResponse(file_obj, content_type=mime_type)
+        response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_path)}"'
+        return response
+    except Exception as e:
+        return Response({'detail': f'Error al servir el archivo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def admin_enroll_student(request):
@@ -959,11 +1001,25 @@ def generate_quiz_ai(request):
     Utiliza google-genai v1.0+
     """
     material_id = request.data.get('material_id')
-    material = get_object_or_404(CourseMaterial, id=material_id)
+    
+    try:
+        material = CourseMaterial.objects.get(id=material_id)
+    except CourseMaterial.DoesNotExist:
+        return Response({'detail': f'Material con ID {material_id} no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Validar que el usuario sea profesor del curso
+    if not ClassSession.objects.filter(teacher=request.user, course=material.course).exists():
+        return Response({'detail': 'No tienes permisos para generar un quiz para este material'}, status=status.HTTP_403_FORBIDDEN)
     
     # 1. Extraer texto del archivo
     text_content = ""
     try:
+        # Validar que el archivo existe
+        if not material.file or not os.path.exists(material.file.path):
+            return Response({
+                'detail': f'El archivo del material no existe en el servidor: {material.file.name if material.file else "Sin archivo"}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         if material.file.name.lower().endswith('.pdf'):
             reader = PdfReader(material.file.path)
             for page in reader.pages[:5]: 
@@ -971,14 +1027,19 @@ def generate_quiz_ai(request):
         else:
             with open(material.file.path, 'r', encoding='utf-8', errors='ignore') as f:
                 text_content = f.read()
+    except FileNotFoundError as e:
+        return Response({'detail': f'Archivo no encontrado: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        return Response({'detail': f'Error leyendo archivo: {str(e)}'}, status=400)
+        return Response({'detail': f'Error leyendo archivo: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
     if len(text_content) < 50:
-        return Response({'detail': 'El archivo contiene muy poco texto para generar un examen.'}, status=400)
+        return Response({'detail': 'El archivo contiene muy poco texto para generar un examen.'}, status=status.HTTP_400_BAD_REQUEST)
 
     # 2. Configurar y Llamar a Gemini (SDK NUEVO)
     try:
+        if not GEMINI_API_KEY:
+            return Response({'detail': 'API Key de Gemini no configurada'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
         client = genai.Client(api_key=GEMINI_API_KEY)
         
         prompt = f"""
@@ -1025,10 +1086,18 @@ def generate_quiz_ai(request):
                 explanation=q.get('explanation', '')
             )
             
-        return Response({'detail': 'Quiz generado exitosamente', 'quiz_id': quiz.id})
+        return Response({'detail': 'Quiz generado exitosamente', 'quiz_id': quiz.id}, status=status.HTTP_201_CREATED)
         
+    except json.JSONDecodeError as e:
+        return Response({'detail': f'Error al parsear respuesta de IA (JSON inválido): {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    except KeyError as e:
+        return Response({'detail': f'Respuesta de IA con estructura inesperada, falta el campo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as e:
-        return Response({'detail': f'Error generando quiz con IA: {str(e)}'}, status=500)
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error generando quiz: {error_trace}")
+        return Response({'detail': f'Error generando quiz con IA: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
