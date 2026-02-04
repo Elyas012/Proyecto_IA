@@ -67,6 +67,13 @@ interface AdminDashboardProps {
 export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [currentView, setCurrentView] = useState<ViewType>("overview");
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentUser, setCurrentUser] = useState<{
+    first_name?: string;
+    last_name?: string;
+    username?: string;
+    email?: string;
+    role?: string;
+  } | null>(null);
 
   // datos principales
   const [users, setUsers] = useState<User[]>([]);
@@ -109,20 +116,63 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         const token = localStorage.getItem("authToken");
         if (!token) return;
 
-        const [usersRes, sessionsRes] = await Promise.all([
+        const [usersRes, sessionsRes, coursesRes] = await Promise.allSettled([
           api.get("/admin/users/"),
           api.get("/admin/active-sessions/"),
+          api.get("/admin/courses/"),
         ]);
-        setUsers(usersRes.data);
-        setActiveSessions(sessionsRes.data);
 
-        const coursesRes = await api.get("/admin/courses");
-        setCourses(coursesRes.data);
+        if (usersRes.status === "fulfilled") {
+          setUsers(usersRes.value.data);
+        }
+
+        if (sessionsRes.status === "fulfilled") {
+          setActiveSessions(sessionsRes.value.data);
+        }
+
+        if (coursesRes.status === "fulfilled") {
+          setCourses(coursesRes.value.data);
+        }
       } catch (error) {
         console.error("Error loading admin data:", error);
       }
     };
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      let storedUser: any = null;
+      if (typeof window !== "undefined") {
+        const raw = localStorage.getItem("user");
+        if (raw) {
+          try {
+            storedUser = JSON.parse(raw);
+          } catch {
+            storedUser = null;
+          }
+        }
+      }
+
+      if (storedUser) {
+        setCurrentUser({
+          first_name: storedUser.first_name,
+          last_name: storedUser.last_name,
+          username: storedUser.username,
+          email: storedUser.email,
+          role: storedUser.role,
+        });
+      }
+
+      try {
+        const meRes = await api.get("/auth/me/");
+        setCurrentUser(meRes.data);
+      } catch (error) {
+        console.error("Error loading current user:", error);
+      }
+    };
+
+    loadCurrentUser();
   }, []);
 
   // crear curso
@@ -231,6 +281,21 @@ const filteredUsers = users.filter((user) =>
     return "text-red-600";
   };
 
+  const displayName =
+    [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ").trim() ||
+    currentUser?.username ||
+    currentUser?.email ||
+    "Administrador";
+
+  const displayRole =
+    currentUser?.role === "admin"
+      ? "Administrador"
+      : currentUser?.role === "teacher"
+      ? "Docente"
+      : currentUser?.role === "student"
+      ? "Estudiante"
+      : "Administrador";
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
       <div className="flex">
@@ -337,8 +402,8 @@ const filteredUsers = users.filter((user) =>
 
                 <div className="flex items-center space-x-3 pl-4 border-l">
                   <div className="text-right">
-                    <p className="text-sm text-gray-900">Carlos Admin</p>
-                    <p className="text-xs text-gray-500">Administrador</p>
+                    <p className="text-sm text-gray-900">{displayName}</p>
+                    <p className="text-xs text-gray-500">{displayRole}</p>
                   </div>
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white">
                     <Shield className="w-5 h-5" />
