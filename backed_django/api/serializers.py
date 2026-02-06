@@ -87,10 +87,10 @@ class CourseMaterialSerializer(serializers.ModelSerializer):
         return hasattr(obj, 'generated_quiz')
     
     def get_file_url(self, obj):
-        """Genera la URL para descargar el archivo a través de la API"""
-        request = self.context.get('request')
-        if request:
-            return request.build_absolute_uri(f'/api/media/course-materials/{obj.id}/download/')
+        """
+        Devuelve la ruta relativa para descargar el archivo.
+        El frontend se encarga de construir la URL completa.
+        """
         return f'/api/media/course-materials/{obj.id}/download/'
 
     def create(self, validated_data):
