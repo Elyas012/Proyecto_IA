@@ -432,8 +432,8 @@ const filteredUsers = users.filter((user) =>
           <header className="bg-white border-b px-4 sm:px-6 lg:px-8 py-3 sm:py-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-lg sm:text-xl lg:text-2xl text-gray-900\">Panel de Administración</h1>
-                <p className=\"text-xs sm:text-sm text-gray-600\">Gestión completa del sistema FocusLearn</p>
+                <h1 className="text-lg sm:text-xl lg:text-2xl text-gray-900">Panel de Administración</h1>
+                <p className="text-xs sm:text-sm text-gray-600">Gestión completa del sistema FocusLearn</p>
               </div>
               
               <div className="flex items-center space-x-2 sm:space-x-4">
