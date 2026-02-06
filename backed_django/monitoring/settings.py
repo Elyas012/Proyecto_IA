@@ -29,9 +29,6 @@ ALLOWED_HOSTS = env('ALLOWED_HOSTS').split(',')
 # Tell Django to trust the X-Forwarded-Proto header from the proxy (Railway)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
-
-# Avoid automatic slash redirects for API endpoints (prevents OPTIONS -> 301)
-APPEND_SLASH = False
 # -----------------------------------------------------------------------------
 
 
