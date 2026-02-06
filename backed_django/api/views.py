@@ -935,21 +935,27 @@ def download_course_material(request, material_id):
     auth_header = request.META.get('HTTP_AUTHORIZATION', '')
     token_param = request.GET.get('token', '')
     
+    # Debug: registrar qué se recibió
+    print(f"[DEBUG] Auth header: {auth_header[:20] if auth_header else 'None'}...")
+    print(f"[DEBUG] Token param: {token_param[:20] if token_param else 'None'}...")
+    
+    token_key = None
+    
     if auth_header.startswith('Token '):
         token_key = auth_header.split(' ')[1]
+    elif token_param:
+        token_key = token_param
+    
+    if token_key:
         try:
             token = Token.objects.get(key=token_key)
             user = token.user
+            print(f"[DEBUG] Authenticated user: {user.username}")
         except Token.DoesNotExist:
-            pass
-    elif token_param:
-        try:
-            token = Token.objects.get(key=token_param)
-            user = token.user
-        except Token.DoesNotExist:
-            pass
+            print(f"[DEBUG] Token not found in database")
     
     if not user:
+        print(f"[DEBUG] No user authenticated, returning 401")
         return Response({'detail': 'Authentication credentials were not provided.'}, status=status.HTTP_401_UNAUTHORIZED)
     
     material = get_object_or_404(CourseMaterial, id=material_id)
