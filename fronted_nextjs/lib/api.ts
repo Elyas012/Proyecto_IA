@@ -16,7 +16,17 @@ export const resolveApiUrl = (path: string) => {
   // Normalizar el path para que comience con /
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   // BASE_URL ya incluye /api, así que concatenamos directamente
-  return `${BASE_URL}${normalizedPath}`;
+  let url = `${BASE_URL}${normalizedPath}`;
+  
+  // Agregar token como query param para archivos media (necesario para iframe/video tags)
+  if (normalizedPath.includes('/media/') && typeof window !== "undefined") {
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      url += `${url.includes('?') ? '&' : '?'}token=${token}`;
+    }
+  }
+  
+  return url;
 };
 
 const api = axios.create({

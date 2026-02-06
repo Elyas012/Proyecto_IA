@@ -922,19 +922,43 @@ class CourseMaterialViewSet(viewsets.ModelViewSet):
 # ==========================================
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
 def download_course_material(request, material_id):
     """
     Sirve archivos de materiales del curso con validación de permisos.
     Resuelve el problema de que MEDIA_URL no funciona en producción cuando DEBUG=False.
+    Acepta token tanto en header como en query parameter para compatibilidad con iframe/video tags.
     """
+    from rest_framework.authtoken.models import Token
+    
+    # Intentar obtener el usuario del token en header o query param
+    user = None
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    token_param = request.GET.get('token', '')
+    
+    if auth_header.startswith('Token '):
+        token_key = auth_header.split(' ')[1]
+        try:
+            token = Token.objects.get(key=token_key)
+            user = token.user
+        except Token.DoesNotExist:
+            pass
+    elif token_param:
+        try:
+            token = Token.objects.get(key=token_param)
+            user = token.user
+        except Token.DoesNotExist:
+            pass
+    
+    if not user:
+        return Response({'detail': 'Authentication credentials were not provided.'}, status=status.HTTP_401_UNAUTHORIZED)
+    
     material = get_object_or_404(CourseMaterial, id=material_id)
     course = material.course
     
     # Verificar que el usuario tenga acceso al material
-    is_enrolled = StudentCourse.objects.filter(student=request.user, course=course).exists()
-    is_teacher = ClassSession.objects.filter(teacher=request.user, course=course).exists()
-    is_admin = hasattr(request.user, 'profile') and request.user.profile.role == 'admin'
+    is_enrolled = StudentCourse.objects.filter(student=user, course=course).exists()
+    is_teacher = ClassSession.objects.filter(teacher=user, course=course).exists()
+    is_admin = hasattr(user, 'profile') and user.profile.role == 'admin'
     
     if not (is_enrolled or is_teacher or is_admin):
         return Response({'detail': 'No tienes permisos para acceder a este material.'}, status=status.HTTP_403_FORBIDDEN)
