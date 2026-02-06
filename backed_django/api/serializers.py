@@ -91,7 +91,7 @@ class CourseMaterialSerializer(serializers.ModelSerializer):
         Devuelve la ruta relativa para descargar el archivo.
         El frontend se encarga de construir la URL completa.
         """
-        return f'/api/media/course-materials/{obj.id}/download/'
+        return f'/media/course-materials/{obj.id}/download/'
 
     def create(self, validated_data):
         file = validated_data.get('file')

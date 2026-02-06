@@ -5,17 +5,18 @@ export const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://proyectoia-production.up.railway.app/api";
 
-export const API_ORIGIN = BASE_URL.replace(/\/api\/?$/, "");
-
 export const resolveApiUrl = (path: string) => {
   if (!path) {
     return path;
   }
+  // Si ya es una URL completa, retornarla tal cual
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
+  // Normalizar el path para que comience con /
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${API_ORIGIN}${normalizedPath}`;
+  // BASE_URL ya incluye /api, así que concatenamos directamente
+  return `${BASE_URL}${normalizedPath}`;
 };
 
 const api = axios.create({
