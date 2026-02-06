@@ -957,7 +957,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                               </CardContent>
                             </Card>
                           </motion.div>
-                        )}}
+                        )}
                         
                         <video
                           ref={videoRef}
