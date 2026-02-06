@@ -924,69 +924,34 @@ class CourseMaterialViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 def download_course_material(request, material_id):
     """
-    Sirve archivos de materiales del curso con validación de permisos.
-    Resuelve el problema de que MEDIA_URL no funciona en producción cuando DEBUG=False.
-    Acepta token tanto en header como en query parameter para compatibilidad con iframe/video tags.
+    Descarga pública controlada de materiales del curso.
+    Compatible con iframe / react-pdf en producción.
     """
-    from rest_framework.authtoken.models import Token
-    
-    # Intentar obtener el usuario del token en header o query param
-    user = None
-    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-    token_param = request.GET.get('token', '')
-    
-    # Debug: registrar qué se recibió
-    print(f"[DEBUG] Auth header: {auth_header[:20] if auth_header else 'None'}...")
-    print(f"[DEBUG] Token param: {token_param[:20] if token_param else 'None'}...")
-    
-    token_key = None
-    
-    if auth_header.startswith('Token '):
-        token_key = auth_header.split(' ')[1]
-    elif token_param:
-        token_key = token_param
-    
-    if token_key:
-        try:
-            token = Token.objects.get(key=token_key)
-            user = token.user
-            print(f"[DEBUG] Authenticated user: {user.username}")
-        except Token.DoesNotExist:
-            print(f"[DEBUG] Token not found in database")
-    
-    if not user:
-        print(f"[DEBUG] No user authenticated, returning 401")
-        return Response({'detail': 'Authentication credentials were not provided.'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-    material = get_object_or_404(CourseMaterial, id=material_id)
-    course = material.course
-    
-    # Verificar que el usuario tenga acceso al material
-    is_enrolled = StudentCourse.objects.filter(student=user, course=course).exists()
-    is_teacher = ClassSession.objects.filter(teacher=user, course=course).exists()
-    is_admin = hasattr(user, 'profile') and user.profile.role == 'admin'
-    
-    if not (is_enrolled or is_teacher or is_admin):
-        return Response({'detail': 'No tienes permisos para acceder a este material.'}, status=status.HTTP_403_FORBIDDEN)
-    
-    # Obtener la ruta del archivo
+    material = get_object_or_404(CourseMaterial, id=material_id, is_active=True)
+
     file_path = material.file.path
-    
-    # Verificar que el archivo existe
+
     if not os.path.exists(file_path):
-        return Response({'detail': 'El archivo no se encontró en el servidor.'}, status=status.HTTP_404_NOT_FOUND)
-    
-    # Servir el archivo
+        return Response(
+            {'detail': 'El archivo no se encontró en el servidor.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
     try:
         file_obj = open(file_path, 'rb')
         mime_type, _ = mimetypes.guess_type(file_path)
-        mime_type = mime_type or 'application/octet-stream'
-        
+        mime_type = mime_type or 'application/pdf'
+
         response = FileResponse(file_obj, content_type=mime_type)
         response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_path)}"'
         return response
+
     except Exception as e:
-        return Response({'detail': f'Error al servir el archivo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {'detail': f'Error al servir el archivo: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
