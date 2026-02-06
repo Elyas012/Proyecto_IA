@@ -73,7 +73,6 @@ const CourseMaterials = ({
     const [generatingId, setGeneratingId] = useState<number | null>(null);
 
     const isTeacher = isTeacherView || userRole === 'teacher';
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
     // Cargar materiales
     const fetchMaterials = async () => {
@@ -297,11 +296,11 @@ const CourseMaterials = ({
                         {selectedMaterial && (
                             selectedMaterial.material_type === 'pdf' ? (
                                 <div className="h-full w-full min-h-[500px]">
-                                    <PdfViewer material={selectedMaterial} API_URL={API_URL} />
+                                    <PdfViewer material={selectedMaterial} />
                                 </div>
                             ) : (
                                 <div className="h-full w-full flex items-center justify-center">
-                                    <VideoPlayer material={selectedMaterial} API_URL={API_URL} />
+                                    <VideoPlayer material={selectedMaterial} />
                                 </div>
                             )
                         )}

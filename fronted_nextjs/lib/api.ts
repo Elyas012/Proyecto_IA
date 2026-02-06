@@ -5,6 +5,19 @@ export const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://proyectoia-production.up.railway.app/api";
 
+export const API_ORIGIN = BASE_URL.replace(/\/api\/?$/, "");
+
+export const resolveApiUrl = (path: string) => {
+  if (!path) {
+    return path;
+  }
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_ORIGIN}${normalizedPath}`;
+};
+
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
