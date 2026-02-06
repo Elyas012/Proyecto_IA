@@ -5,7 +5,7 @@ export const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://proyectoia-production.up.railway.app/api";
 
-export const resolveApiUrl = (path: string) => {
+export const resolveApiUrl = (path: string): string => {
   if (!path) {
     return path;
   }
@@ -22,7 +22,7 @@ export const resolveApiUrl = (path: string) => {
   if (normalizedPath.includes('/media/') && typeof window !== "undefined") {
     const token = localStorage.getItem("authToken");
     if (token) {
-      url += `${url.includes('?') ? '&' : '?'}token=${token}`;
+      url += `${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
     }
   }
   
