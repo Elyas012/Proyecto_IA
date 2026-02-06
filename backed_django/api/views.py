@@ -6,6 +6,9 @@ import tensorflow as tf
 import joblib
 from pypdf import PdfReader
 import mimetypes
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes
+
 
 # Imports de Django y REST Framework
 from django.conf import settings
@@ -922,6 +925,7 @@ class CourseMaterialViewSet(viewsets.ModelViewSet):
 # ==========================================
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def download_course_material(request, material_id):
     """
     Descarga pública controlada de materiales del curso.
