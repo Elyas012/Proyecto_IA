@@ -101,6 +101,11 @@ CORS_ALLOWED_ORIGINS = env(
     default='http://localhost:3000,https://proyecto-ia-ruby.vercel.app'
 ).split(',')
 
+# Para permitir todos los subdominios de Vercel (deployments preview)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+]
+
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
