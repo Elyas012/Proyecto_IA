@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   FaceLandmarker,
   FilesetResolver,
 } from "@mediapipe/tasks-vision";
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
+import { resolveApiUrl } from "../lib/api";
 
 interface WebcamCaptureProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -52,7 +53,7 @@ export default function WebcamCapture({
   onFeaturesExtracted,
   onAttentionUpdate,
   classSessionId,
-  modelEndpoint = "http://localhost:8000/api/predict-distractions/",
+  modelEndpoint,
 }: WebcamCaptureProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
@@ -70,6 +71,11 @@ export default function WebcamCapture({
   
   // Callback estable para onAttentionUpdate
   const onAttentionUpdateRef = useRef(onAttentionUpdate);
+
+  const resolvedModelEndpoint = useMemo(
+    () => resolveApiUrl(modelEndpoint || "/predict-distractions/"),
+    [modelEndpoint]
+  );
   
   // Actualizar ref cuando cambia la función
   useEffect(() => {
@@ -87,9 +93,15 @@ export default function WebcamCapture({
     
     try {
       lastModelCallRef.current = Date.now();
-      const response = await fetch(modelEndpoint, {
+      const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers.Authorization = `Token ${token}`;
+      }
+
+      const response = await fetch(resolvedModelEndpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ 
           features: batch.map(f => [f.ear, f.mar]), // [[ear,mar], [ear,mar], ...]
           sessionId: classSessionId,
@@ -286,7 +298,7 @@ export default function WebcamCapture({
       featuresBufferRef.current = [];
       lastVideoTimeRef.current = -1;
     };
-  }, [isCameraActive, isAnalyzing, videoRef, onFeaturesExtracted, classSessionId, modelEndpoint]);
+  }, [isCameraActive, isAnalyzing, videoRef, onFeaturesExtracted, classSessionId, resolvedModelEndpoint]);
   // ⚠️ NOTA: onAttentionUpdate NO está en las dependencias - usamos ref para evitar re-montajes
 
   return (
