@@ -279,9 +279,8 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
             setPomodoroTimeLeft(data.time_remaining_in_current_phase);
           }
         } else if (data.status === 'idle') {
-          setIsPomodoroActive(false);
-          setPomodoroTimeLeft(0);
-          setPomodoroPhase('trabajo');
+          if (pomodoroPhase !== 'trabajo') setPomodoroPhase('trabajo');
+          setPomodoroTimeLeft(prev => (prev > 0 ? prev : getWorkDurationSeconds()));
         }
       } catch (error) {
         console.error('Error fetching pomodoro status:', error);
@@ -334,9 +333,16 @@ useEffect(() => {
       const currentStatus = backendPomodoroStatus.status;
       const currentAttention = attentionScoreRef.current;
       
-      // Si backend está idle o break_distracted, sincroniza con backend
-      if (currentStatus === 'idle' || currentStatus === 'break_distracted') {
+      // Si backend está break_distracted, sincroniza con backend
+      if (currentStatus === 'break_distracted') {
         return backendPomodoroStatus.time_remaining_in_current_phase;
+      }
+
+      if (currentStatus === 'idle') {
+        if (prev <= 0) {
+          return getWorkDurationSeconds();
+        }
+        return shouldDecrement ? prev - 1 : prev;
       }
       
       // Solo decrementa si la atención es >= 50
@@ -617,6 +623,8 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
     try {
       if (newPomodoroActiveState) {
+        setPomodoroPhase('trabajo');
+        setPomodoroTimeLeft(getWorkDurationSeconds());
         await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'start', reason: 'manual_start' });
         toast.success('Pomodoro iniciado!');
       } else {
