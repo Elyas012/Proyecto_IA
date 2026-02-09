@@ -916,14 +916,84 @@ class CourseMaterialViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='by-course/(?P<course_id>[^/.]+)')
     def by_course(self, request, course_id=None):
-        is_enrolled = StudentCourse.objects.filter(student=request.user, course_id=course_id).exists()
-        is_teacher = ClassSession.objects.filter(teacher=request.user, course_id=course_id).exists()
-
-        if not (is_enrolled or is_teacher or (hasattr(request.user, 'profile') and request.user.profile.role == 'admin')):
-            return Response({'detail': 'No está autorizado para ver los materiales de este curso.'}, status=status.HTTP_403_FORBIDDEN)
+        # Logging para debugging
+        print(f"\n" + "="*70)
+        print(f"🔍 DEBUG - by_course endpoint - {timezone.now()}")
+        print(f"="*70)
+        print(f"📍 Request details:")
+        print(f"   URL: /api/course-materials/by-course/{course_id}/")
+        print(f"   Method: GET")
         
+        # Verificar headers
+        auth_header = request.META.get('HTTP_AUTHORIZATION', 'NO AUTH HEADER')
+        print(f"\n🔐 Autenticación:")
+        print(f"   Authorization Header: {auth_header}")
+        print(f"   Usuario autenticado: {request.user.is_authenticated}")
+        print(f"   Usuario: {request.user.username if request.user.is_authenticated else 'Anonymous'}")
+        
+        # Si no está autenticado, retornar error inmediatamente
+        if not request.user.is_authenticated:
+            print(f"   ❌ ERROR: Usuario no autenticado")
+            print(f"="*70 + "\n")
+            return Response(
+                {'detail': 'Credenciales de autenticación no proporcionadas.'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Verificar perfil
+        has_profile = hasattr(request.user, 'profile')
+        user_role = request.user.profile.role if has_profile else None
+        print(f"\n👤 Perfil del usuario:")
+        print(f"   Tiene perfil: {has_profile}")
+        print(f"   Rol: {user_role}")
+        
+        # Verificar permisos para el curso específico
+        print(f"\n🎓 Verificando permisos para curso ID: {course_id}")
+        is_enrolled = StudentCourse.objects.filter(student=request.user, course_id=course_id).exists()
+        is_teacher_in_course = ClassSession.objects.filter(teacher=request.user, course_id=course_id).exists()
+        is_teacher_role = has_profile and user_role == 'teacher'
+        is_admin = has_profile and user_role == 'admin'
+        
+        print(f"   ✓ Inscrito como estudiante: {is_enrolled}")
+        print(f"   ✓ Tiene clase en este curso: {is_teacher_in_course}")
+        print(f"   ✓ Rol de docente general: {is_teacher_role}")
+        print(f"   ✓ Es administrador: {is_admin}")
+        
+        # PERMISOS: Permitir acceso si es estudiante inscrito, docente (cualquier docente), o admin
+        has_access = is_enrolled or is_teacher_role or is_admin
+        
+        if not has_access:
+            print(f"\n   ❌ ACCESO DENEGADO - Usuario no tiene permisos")
+            print(f"="*70 + "\n")
+            return Response(
+                {
+                    'detail': 'No está autorizado para ver los materiales de este curso.',
+                    'debug_info': {
+                        'user': request.user.username,
+                        'role': user_role,
+                        'course_id': course_id,
+                        'is_enrolled': is_enrolled,
+                        'is_teacher': is_teacher_role,
+                        'is_admin': is_admin
+                    }
+                }, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        print(f"\n   ✅ ACCESO CONCEDIDO")
+        
+        # Obtener materiales
         materials = self.get_queryset().filter(course_id=course_id)
+        print(f"\n📦 Materiales encontrados: {materials.count()}")
+        
+        if materials.exists():
+            for mat in materials:
+                print(f"   • ID: {mat.id} | Título: {mat.title} | Tipo: {mat.file_type}")
+        
         serializer = self.get_serializer(materials, many=True)
+        print(f"\n✅ Respuesta exitosa - {len(serializer.data)} materiales")
+        print(f"="*70 + "\n")
+        
         return Response(serializer.data)
 
 # ==========================================

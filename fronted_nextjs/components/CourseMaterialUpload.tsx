@@ -5,7 +5,9 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { toast } from 'sonner';
+import { Upload, Link as LinkIcon } from 'lucide-react';
 
 interface CourseMaterialUploadProps {
   courseId: number;
@@ -19,6 +21,8 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
   const [file, setFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState('other');
   const [uploading, setUploading] = useState(false);
+  const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file'); // Nuevo: modo de subida
+  const [videoUrl, setVideoUrl] = useState(''); // Nuevo: URL del video
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -37,8 +41,14 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!file || !title) {
+    // Validación según el modo
+    if (uploadMode === 'file' && (!file || !title)) {
       toast.error('Por favor, selecciona un archivo y añade un título.');
+      return;
+    }
+
+    if (uploadMode === 'url' && (!videoUrl || !title)) {
+      toast.error('Por favor, ingresa una URL de video y un título.');
       return;
     }
 
@@ -51,8 +61,14 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
     formData.append('course', String(courseId));
     formData.append('title', title);
     formData.append('description', description);
-    formData.append('file', file);
-    formData.append('file_type', fileType);
+    
+    if (uploadMode === 'file' && file) {
+      formData.append('file', file);
+      formData.append('file_type', fileType);
+    } else if (uploadMode === 'url') {
+      formData.append('video_url', videoUrl);
+      formData.append('file_type', 'link'); // Tipo especial para videos con URL
+    }
 
     setUploading(true);
 
@@ -70,6 +86,7 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
       setTitle('');
       setDescription('');
       setFile(null);
+      setVideoUrl('');
     } catch (error) {
       console.error('Error uploading file:', error);
       toast.error('Hubo un error al subir el material.');
@@ -85,6 +102,27 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Selector de modo: Archivo o URL */}
+          <div className="space-y-3">
+            <Label>Tipo de Material</Label>
+            <RadioGroup value={uploadMode} onValueChange={(value: 'file' | 'url') => setUploadMode(value)}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="file" id="file-mode" />
+                <Label htmlFor="file-mode" className="flex items-center gap-2 cursor-pointer">
+                  <Upload className="w-4 h-4" />
+                  Subir Archivo (PDF o Video)
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="url" id="url-mode" />
+                <Label htmlFor="url-mode" className="flex items-center gap-2 cursor-pointer">
+                  <LinkIcon className="w-4 h-4" />
+                  URL de Video (YouTube, Vimeo, etc.)
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
           <div>
             <Label htmlFor="title">Título del Material</Label>
             <Input
@@ -95,6 +133,7 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
               required
             />
           </div>
+          
           <div>
             <Label htmlFor="description">Descripción (Opcional)</Label>
             <Textarea
@@ -104,18 +143,41 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
               placeholder="Breve descripción del contenido del material"
             />
           </div>
-          <div>
-            <Label htmlFor="file">Archivo (PDF o Video)</Label>
-            <Input
-              id="file"
-              type="file"
-              onChange={handleFileChange}
-              accept=".pdf,video/*"
-              required
-            />
-          </div>
-          <Button type="submit" disabled={uploading}>
-            {uploading ? 'Subiendo...' : 'Subir Material'}
+
+          {/* Campo de archivo (solo si modo = file) */}
+          {uploadMode === 'file' && (
+            <div>
+              <Label htmlFor="file">Archivo (PDF o Video)</Label>
+              <Input
+                id="file"
+                type="file"
+                onChange={handleFileChange}
+                accept=".pdf,video/*"
+                required
+              />
+            </div>
+          )}
+
+          {/* Campo de URL (solo si modo = url) */}
+          {uploadMode === 'url' && (
+            <div>
+              <Label htmlFor="videoUrl">URL del Video</Label>
+              <Input
+                id="videoUrl"
+                type="url"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=xxxxx"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Soporta: YouTube, Vimeo, Dailymotion, SoundCloud y más
+              </p>
+            </div>
+          )}
+
+          <Button type="submit" disabled={uploading} className="w-full">
+            {uploading ? 'Subiendo...' : uploadMode === 'file' ? 'Subir Material' : 'Agregar Video'}
           </Button>
         </form>
       </CardContent>

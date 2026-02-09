@@ -15,7 +15,9 @@ import { Label } from "@/components/ui/label";
 interface CourseMaterial {
     id: number;
     title: string;
-    file_url: string;  // ✅ CAMBIAR de 'file' a 'file_url'
+    description?: string;
+    file_url?: string;  // Opcional: para archivos subidos
+    video_url?: string; // Opcional: para URLs de YouTube/Vimeo
     material_type: 'pdf' | 'video';
     is_active: boolean;
     has_quiz?: boolean;
@@ -45,6 +47,7 @@ interface CourseMaterialsProps {
     userRole?: "student" | "teacher" | "admin";
     token?: string | null;
     onMaterialChange?: () => void;
+    onVideoSelect?: (material: any) => void;
 }
 
 const CourseMaterials = ({ 
@@ -52,12 +55,14 @@ const CourseMaterials = ({
     isTeacherView = false, 
     userRole = "student",
     token, 
-    onMaterialChange
+    onMaterialChange,
+    onVideoSelect
 }: CourseMaterialsProps) => {
     // --- ESTADOS GENERALES ---
     const [materials, setMaterials] = useState<CourseMaterial[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [activeSection, setActiveSection] = useState<'videos' | 'pdfs' | 'quizzes'>('videos');
     
     // --- ESTADOS PARA EL VISOR DE PDF/VIDEO ---
     const [selectedMaterial, setSelectedMaterial] = useState<CourseMaterial | null>(null);
@@ -84,10 +89,13 @@ const CourseMaterials = ({
         setLoading(true);
         try {
             const response = await getCourseMaterials(String(courseId));
+            console.log('📦 Materiales recibidos del servidor:', response);
             const filtered = isTeacher ? response : response.filter((mat: CourseMaterial) => mat.is_active);
+            console.log('📦 Materiales después del filtro:', filtered);
             setMaterials(filtered);
             setError(null);
         } catch (err) {
+            console.error('❌ Error cargando materiales:', err);
             setError('No se pudo cargar el material del curso.');
             console.error(err);
         } finally {
@@ -102,8 +110,20 @@ const CourseMaterials = ({
 
     // --- MANEJADORES DE MATERIALES ---
     const handleMaterialClick = (material: CourseMaterial) => {
+        console.log('👁️ Haciendo clic en Ver material:', material);
+        console.log('   - ID:', material.id);
+        console.log('   - Tipo:', material.material_type);
+        console.log('   - video_url:', material.video_url);
+        console.log('   - file_url:', material.file_url);
+        
         setSelectedMaterial(material);
         setIsViewerOpen(true);
+        
+        // ✅ NUEVO: Si es un video y hay callback, notificar al padre (StudentDashboard)
+        if (material.material_type === 'video' && onVideoSelect) {
+            console.log('📹 Notificando selección de video al padre');
+            onVideoSelect(material);
+        }
     };
 
     const handleDeleteMaterial = async (materialId: number) => {
@@ -202,18 +222,75 @@ const CourseMaterials = ({
         ? "max-w-6xl h-[70vh] w-[800px]" 
         : "max-w-4xl h-[95vh]";
 
+    // Agrupar materiales por tipo
+    const videoMaterials = materials.filter(m => m.material_type === 'video');
+    const pdfMaterials = materials.filter(m => m.material_type === 'pdf');
+    const quizMaterials = materials.filter(m => m.has_quiz);
+
+    // Determinar qué materiales mostrar según la sección activa
+    const currentMaterials = activeSection === 'videos' ? videoMaterials 
+        : activeSection === 'pdfs' ? pdfMaterials 
+        : quizMaterials;
+
     return (
         <>
             <Card>
                 <CardHeader>
                     <CardTitle>Material del Curso</CardTitle>
+                    {/* Navegación por secciones */}
+                    <div className="flex gap-2 mt-4">
+                        <button
+                            onClick={() => setActiveSection('videos')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                                activeSection === 'videos'
+                                    ? 'bg-blue-500 text-white shadow-md'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            <Video className="w-4 h-4" />
+                            Videos ({videoMaterials.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveSection('pdfs')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                                activeSection === 'pdfs'
+                                    ? 'bg-red-500 text-white shadow-md'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            <FileText className="w-4 h-4" />
+                            PDFs ({pdfMaterials.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveSection('quizzes')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                                activeSection === 'quizzes'
+                                    ? 'bg-cyan-500 text-white shadow-md'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                        >
+                            <Sparkles className="w-4 h-4" />
+                            Evaluaciones ({quizMaterials.length})
+                        </button>
+                    </div>
                 </CardHeader>
                 <CardContent>
-                    {materials.length === 0 ? (
-                        <p className="text-gray-500 text-sm">No hay materiales disponibles.</p>
+                    {currentMaterials.length === 0 ? (
+                        <div className="text-center py-8">
+                            <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                                {activeSection === 'videos' && <Video className="w-8 h-8 text-gray-400" />}
+                                {activeSection === 'pdfs' && <FileText className="w-8 h-8 text-gray-400" />}
+                                {activeSection === 'quizzes' && <Sparkles className="w-8 h-8 text-gray-400" />}
+                            </div>
+                            <p className="text-gray-500 text-sm">
+                                {activeSection === 'videos' && 'No hay videos disponibles en este curso.'}
+                                {activeSection === 'pdfs' && 'No hay documentos PDF disponibles en este curso.'}
+                                {activeSection === 'quizzes' && 'No hay evaluaciones disponibles aún.'}
+                            </p>
+                        </div>
                     ) : (
                         <div className="space-y-3">
-                            {materials.map((material) => (
+                            {currentMaterials.map((material) => (
                                 <div key={material.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50 rounded-lg border hover:border-slate-300 transition-colors gap-3">
                                     <div className="flex items-center space-x-3 overflow-hidden">
                                         <div className="bg-white p-2 rounded shadow-sm shrink-0">
@@ -233,9 +310,24 @@ const CourseMaterials = ({
                                     </div>
 
                                     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                                        <Button size="sm" variant="ghost" onClick={() => handleMaterialClick(material)}>
-                                            <Eye className="h-4 w-4 mr-2" /> Ver
-                                        </Button>
+                                        {/* Botón Ver - Solo en secciones de videos y PDFs */}
+                                        {activeSection !== 'quizzes' && (
+                                            <Button size="sm" variant="ghost" onClick={() => handleMaterialClick(material)}>
+                                                <Eye className="h-4 w-4 mr-2" /> Ver
+                                            </Button>
+                                        )}
+
+                                        {/* Botón de Prueba - Solo para estudiantes en sección de quizzes */}
+                                        {!isTeacher && activeSection === 'quizzes' && material.has_quiz && (
+                                            <Button 
+                                                size="sm" 
+                                                className="bg-cyan-600 hover:bg-cyan-700 text-white"
+                                                onClick={() => handleTakeQuiz(material.id)}
+                                            >
+                                                <PlayCircle className="w-3 h-3 mr-1" />
+                                                Tomar Evaluación
+                                            </Button>
+                                        )}
 
                                         {isTeacher && (
                                             <>
@@ -266,17 +358,6 @@ const CourseMaterials = ({
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </>
-                                        )}
-
-                                        {!isTeacher && material.has_quiz && (
-                                            <Button 
-                                                size="sm" 
-                                                className="bg-cyan-600 hover:bg-cyan-700 text-white"
-                                                onClick={() => handleTakeQuiz(material.id)} // <--- AHORA LLAMA A LA FUNCIÓN LOCAL
-                                            >
-                                                <PlayCircle className="w-3 h-3 mr-1" />
-                                                Prueba
-                                            </Button>
                                         )}
                                     </div>
                                 </div>

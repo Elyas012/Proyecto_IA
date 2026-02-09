@@ -79,8 +79,8 @@ class CourseMaterialSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CourseMaterial
-        # ✅ CAMBIO: Agregado 'has_quiz' a la lista
-        fields = ['id', 'course', 'title', 'description', 'file', 'file_type', 'is_active', 'uploaded_at', 'has_quiz', 'file_url']
+        # ✅ CAMBIO: Agregado 'has_quiz' y 'video_url' a la lista
+        fields = ['id', 'course', 'title', 'description', 'file', 'file_type', 'video_url', 'is_active', 'uploaded_at', 'has_quiz', 'file_url']
 
     def get_has_quiz(self, obj):
         """Devuelve True si existe un quiz generado para este material"""
@@ -89,12 +89,21 @@ class CourseMaterialSerializer(serializers.ModelSerializer):
     def get_file_url(self, obj):
         """
         Devuelve la ruta relativa para descargar el archivo.
-        El frontend se encarga de construir la URL completa.
+        Si es un enlace externo (video_url), devuelve None.
         """
-        return f'/media/course-materials/{obj.id}/download/'
+        # Si es un enlace externo, no hay file_url
+        if obj.file_type == 'link' or obj.video_url:
+            return None
+        # Si hay archivo, devolver ruta de descarga
+        if obj.file:
+            return f'/media/course-materials/{obj.id}/download/'
+        return None
 
     def create(self, validated_data):
         file = validated_data.get('file')
+        video_url = validated_data.get('video_url')
+        
+        # Si hay archivo, determinar tipo por extensión
         if file:
             file_name = file.name.lower()
             if file_name.endswith('.pdf'):
@@ -102,16 +111,26 @@ class CourseMaterialSerializer(serializers.ModelSerializer):
             elif file_name.endswith(('.mp4', '.mov', '.avi', '.wmv')): 
                 validated_data['file_type'] = 'video'
             else:
-                validated_data['file_type'] = 'other' 
+                validated_data['file_type'] = 'other'
+        # Si hay video_url, el tipo es 'link'
+        elif video_url:
+            validated_data['file_type'] = 'link'
+        
         return super().create(validated_data)
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        # Rename 'file_type' to 'material_type' for frontend compatibility
-        if 'file_type' in representation:
-            representation['material_type'] = representation.pop('file_type')
         
-        # No exponer el path directo, usar file_url en su lugar
+        # Convertir file_type a material_type para compatibilidad con el frontend
+        if 'file_type' in representation:
+            file_type = representation.pop('file_type')
+            # Si es 'link', es un video externo
+            if file_type == 'link':
+                representation['material_type'] = 'video'
+            else:
+                representation['material_type'] = file_type
+        
+        # No exponer el path directo del archivo
         if 'file' in representation:
             representation.pop('file')
         

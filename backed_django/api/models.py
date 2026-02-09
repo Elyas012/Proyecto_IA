@@ -194,14 +194,15 @@ class PomodoroSession(models.Model):
 
 class CourseMaterial(models.Model):
     """Material de un curso (PDF, video, etc.)"""
-    FILE_TYPE_CHOICES = [('pdf', 'PDF'), ('video', 'Video'), ('other', 'Otro')]
+    FILE_TYPE_CHOICES = [('pdf', 'PDF'), ('video', 'Video'), ('link', 'Enlace de Video'), ('other', 'Otro')]
 
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='materials')
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    file = models.FileField(upload_to='course_materials/')
+    file = models.FileField(upload_to='course_materials/', null=True, blank=True)
     file_type = models.CharField(max_length=20, choices=FILE_TYPE_CHOICES, default='other')
-    is_active = models.BooleanField(default=True) # Added field
+    video_url = models.URLField(max_length=500, blank=True, null=True, help_text="URL de YouTube, Vimeo u otro servicio")
+    is_active = models.BooleanField(default=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

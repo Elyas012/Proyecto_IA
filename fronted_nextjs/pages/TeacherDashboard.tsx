@@ -24,7 +24,10 @@ import {
   Search,
   Upload,
   Menu,
-  X
+  X,
+  Brain,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from "recharts";
 
@@ -62,6 +65,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   const [selectedCourseForMaterials, setSelectedCourseForMaterials] = useState<number | null>(null);
   const [materialChangeCounter, setMaterialChangeCounter] = useState(0); // Added for re-rendering materials
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const [teacherProfile, setTeacherProfile] = useState<{
     id?: number;
@@ -185,123 +189,176 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
       {/* Mobile Header */}
-      <div className="lg:hidden bg-gradient-to-r from-gray-900 to-black text-white p-4 flex items-center justify-between sticky top-0 z-50">
-        <div>
-          <h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-500 bg-clip-text text-transparent">FocusLearn</h2>
-          <p className="text-gray-400 text-xs">Panel Docente</p>
+      <div className="lg:hidden bg-[#1a1a1a] text-white p-4 flex items-center justify-between sticky top-0 z-50 shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center">
+            <Brain className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">FocusLearn</h2>
+            <p className="text-gray-500 text-xs">Panel Docente</p>
+          </div>
         </div>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="text-white p-2 hover:bg-gray-800 rounded-lg transition-colors"
+          className="text-gray-400 hover:text-white p-2 hover:bg-gray-800 rounded-lg transition-colors"
         >
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
       
       <div className="flex">
-        {/* Sidebar */}
+        {/* Sidebar - Desktop y Mobile */}
         <aside className={`
           fixed lg:static inset-y-0 left-0 z-40
-          w-64 bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl
-          transform transition-transform duration-300 ease-in-out
+          ${isSidebarCollapsed ? 'w-20' : 'w-64'} 
+          min-h-screen flex flex-col
+          bg-[#1a1a1a] text-white shadow-2xl
+          ${isSidebarCollapsed ? 'px-3 py-6' : 'px-4 py-6'}
+          transform transition-all duration-300 ease-in-out
           lg:transform-none
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
-          <div className="mb-8 hidden lg:block">
-            <h2 className="bg-gradient-to-r from-blue-400 to-blue-500 bg-clip-text text-transparent">FocusLearn</h2>
-            <p className="text-gray-400 text-sm mt-1">Panel Docente</p>
+          <div className={`mb-6 hidden lg:flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} pb-4 border-b border-gray-800`}>
+            <div className={`${isSidebarCollapsed ? 'hidden' : 'flex items-center gap-3'}`}>
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center">
+                <Brain className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">FocusLearn</h2>
+                <p className="text-gray-500 text-xs">Panel Docente</p>
+              </div>
+            </div>
+            {!isSidebarCollapsed ? (
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-800"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-800"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
-          <nav className="space-y-2">
+          <nav className="space-y-1">
             <button
               onClick={() => {
                 setCurrentView("dashboard");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "dashboard" 
-                  ? "bg-blue-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-orange-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Dashboard"
             >
-              <LayoutDashboard className="w-5 h-5" />
-              <span>Dashboard</span>
+              <LayoutDashboard className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "dashboard" ? "text-orange-500" : "group-hover:text-orange-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Dashboard</span>
             </button>
 
             <button
               onClick={() => {
                 setCurrentView("students");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "students" 
-                  ? "bg-blue-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-orange-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Estudiantes"
             >
-              <Users className="w-5 h-5" />
-              <span>Estudiantes</span>
+              <Users className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "students" ? "text-orange-500" : "group-hover:text-orange-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Estudiantes</span>
             </button>
 
             <button
               onClick={() => {
                 setCurrentView("stats");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "stats" 
-                  ? "bg-blue-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-orange-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Estadísticas"
             >
-              <BarChart3 className="w-5 h-5" />
-              <span>Estadísticas</span>
+              <BarChart3 className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "stats" ? "text-orange-500" : "group-hover:text-orange-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Estadísticas</span>
             </button>
 
             <button
               onClick={() => {
                 setCurrentView("materials");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "materials"
-                  ? "bg-blue-500 text-white"
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-orange-500"
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Materiales"
             >
-              <Upload className="w-5 h-5" />
-              <span>Materiales</span>
+              <Upload className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "materials" ? "text-orange-500" : "group-hover:text-orange-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Materiales</span>
             </button>
 
             <button
               onClick={() => {
                 setCurrentView("profile");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "profile" 
-                  ? "bg-blue-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-orange-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Mi Perfil"
             >
-              <User className="w-5 h-5" />
-              <span>Mi Perfil</span>
+              <User className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "profile" ? "text-orange-500" : "group-hover:text-orange-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Mi Perfil</span>
             </button>
           </nav>
 
-          <div className="mt-auto pt-8">
-            <Separator className="mb-4 bg-gray-700" />
+          {/* Divider */}
+          <div className="my-4 border-t border-gray-800"></div>
+
+          <div className="mt-auto pt-4">
             <button 
               onClick={() => {
                 onLogout?.();
                 setIsMobileMenuOpen(false);
               }}
-              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors"
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg text-gray-400 hover:bg-red-900 hover:bg-opacity-20 hover:text-red-400 transition-all duration-200 border-l-4 border-transparent hover:border-red-500 group`}
+              title="Cerrar Sesión"
             >
-              <LogOut className="w-5 h-5" />
-              <span>Cerrar Sesión</span>
+              <LogOut className="w-5 h-5 flex-shrink-0 group-hover:text-red-400" />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Cerrar Sesión</span>
             </button>
           </div>
         </aside>
@@ -309,7 +366,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
         {/* Overlay para cerrar menú en móvil */}
         {isMobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            className="fixed inset-0 bg-black bg-opacity-70 z-30 lg:hidden backdrop-blur-sm"
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
@@ -320,7 +377,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           {currentView === "dashboard" && (
             <div>
               <div className="mb-6 sm:mb-8">
-                <h1 className="text-2xl sm:text-3xl text-gray-900 mb-2">Dashboard del Docente</h1>
+                <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent mb-2">Dashboard del Docente</h1>
                 <p className="text-sm sm:text-base text-gray-600">Resumen general de la atención estudiantil</p>
                 {teacherProfile && (
                   <div className="mt-3 text-xs sm:text-sm text-gray-700">
@@ -364,56 +421,56 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
               </div>
 
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <Card className="border-l-4 border-l-blue-500">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <Card className="border-l-4 border-l-orange-500 shadow-lg hover:shadow-xl transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm text-gray-600">Total Estudiantes</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-blue-600">{overview ? overview.total_students : students.length}</span>
-                      <Users className="w-5 h-5 text-blue-600" />
+                      <span className="text-3xl font-bold text-orange-600">{overview ? overview.total_students : students.length}</span>
+                      <Users className="w-8 h-8 text-orange-600" />
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Activos</p>
+                    <p className="text-sm text-gray-500 mt-2">Activos</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-green-500">
+                <Card className="border-l-4 border-l-green-500 shadow-lg hover:shadow-xl transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm text-gray-600">Atención Promedio</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-green-600">{overview ? overview.average_attention + '%' : averageClassAttention + '%'}</span>
-                      <TrendingUp className="w-5 h-5 text-green-600" />
+                      <span className="text-3xl font-bold text-green-600">{overview ? overview.average_attention + '%' : averageClassAttention + '%'}</span>
+                      <TrendingUp className="w-8 h-8 text-green-600" />
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Esta semana</p>
+                    <p className="text-sm text-gray-500 mt-2">Esta semana</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-blue-500">
+                <Card className="border-l-4 border-l-amber-500 shadow-lg hover:shadow-xl transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm text-gray-600">Clases Impartidas</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-blue-600">{overview ? overview.total_classes : 15}</span>
-                      <BookOpen className="w-5 h-5 text-blue-600" />
+                      <span className="text-3xl font-bold text-amber-600">{overview ? overview.total_classes : 15}</span>
+                      <BookOpen className="w-8 h-8 text-amber-600" />
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Este mes</p>
+                    <p className="text-sm text-gray-500 mt-2">Este mes</p>
                   </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-red-500">
+                <Card className="border-l-4 border-l-red-500 shadow-lg hover:shadow-xl transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm text-gray-600">Alertas Atención</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <span className="text-red-600">3</span>
-                      <TrendingDown className="w-5 h-5 text-red-600" />
+                      <span className="text-3xl font-bold text-red-600">3</span>
+                      <TrendingDown className="w-8 h-8 text-red-600" />
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Requieren seguimiento</p>
+                    <p className="text-sm text-gray-500 mt-2">Requieren seguimiento</p>
                   </CardContent>
                 </Card>
               </div>
@@ -421,9 +478,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
               {/* Charts Row */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 {/* Bar Chart */}
-                <Card>
+                <Card className="shadow-lg">
                   <CardHeader>
-                    <CardTitle>Atención Promedio por Clase</CardTitle>
+                    <CardTitle className="text-orange-700">Atención Promedio por Clase</CardTitle>
                     <CardDescription>Comparación entre materias</CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -439,16 +496,16 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                             borderRadius: '8px'
                           }}
                         />
-                        <Bar dataKey="promedio" fill="#ff6b35" radius={[8, 8, 0, 0]} />
+                        <Bar dataKey="promedio" fill="#ea580c" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
 
                 {/* Pie Chart */}
-                <Card>
+                <Card className="shadow-lg">
                   <CardHeader>
-                    <CardTitle>Distribución de Niveles de Atención</CardTitle>
+                    <CardTitle className="text-orange-700">Distribución de Niveles de Atención</CardTitle>
                     <CardDescription>Clasificación del grupo</CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -476,9 +533,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
               </div>
 
               {/* Weekly Evolution Chart */}
-              <Card className="mb-8">
+              <Card className="mb-8 shadow-lg">
                 <CardHeader>
-                  <CardTitle>Evolución Semanal de Atención</CardTitle>
+                  <CardTitle className="text-orange-700">Evolución Semanal de Atención</CardTitle>
                   <CardDescription>Tendencia del grupo durante la semana</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -486,8 +543,8 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                     <AreaChart data={weeklyEvolution}>
                       <defs>
                         <linearGradient id="colorWeekly" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#ff6b35" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#ff6b35" stopOpacity={0.1}/>
+                          <stop offset="5%" stopColor="#ea580c" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#ea580c" stopOpacity={0.1}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -514,14 +571,14 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
               </Card>
 
               {/* Top Students Preview */}
-              <Card>
+              <Card className="shadow-lg">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>Estudiantes Destacados</CardTitle>
+                      <CardTitle className="text-orange-700">Estudiantes Destacados</CardTitle>
                       <CardDescription>Top 3 con mejor atención</CardDescription>
                     </div>
-                    <Button onClick={() => setCurrentView("students")} variant="outline">
+                    <Button onClick={() => setCurrentView("students")} variant="outline" className="border-orange-300 text-orange-600 hover:bg-orange-50">
                       Ver todos
                     </Button>
                   </div>
@@ -534,19 +591,19 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                       .map((student, index) => (
                         <div 
                           key={student.id}
-                          className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg border border-orange-200"
+                          className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200 hover:shadow-md transition-shadow"
                         >
                           <div className="flex items-center space-x-4">
-                            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white font-bold shadow-md">
                               #{index + 1}
                             </div>
                             <div>
-                              <p className="text-gray-900">{student.name}</p>
+                              <p className="font-semibold text-gray-900">{student.name}</p>
                               <p className="text-sm text-gray-600">{student.email}</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className={`${getAttentionColor(student.averageAttention)}`}>
+                            <p className={`text-xl font-bold ${getAttentionColor(student.averageAttention)}`}>
                               {student.averageAttention}%
                             </p>
                             <p className="text-sm text-gray-500">Atención promedio</p>
@@ -561,59 +618,61 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
 
           {/* Students View (TABLA ACTUALIZADA) */}
           {currentView === "students" && (
-            <section className="mt-8 bg-white shadow-sm rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Lista de Estudiantes
-              </h2>
-              <p className="text-sm text-gray-500 mb-4">
-                Gestión y seguimiento individual.
-              </p>
+            <section className="mt-8 bg-white shadow-lg rounded-lg p-6">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent mb-2">
+                  Lista de Estudiantes
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Gestión y seguimiento individual.
+                </p>
+              </div>
 
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gradient-to-r from-orange-50 to-amber-50">
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">ID</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Estudiante</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">% Atención</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Asistencia</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Estado</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Acciones</th>
+                      <th className="px-3 py-3 text-left font-semibold text-orange-700">ID</th>
+                      <th className="px-3 py-3 text-left font-semibold text-orange-700">Estudiante</th>
+                      <th className="px-3 py-3 text-left font-semibold text-orange-700">% Atención</th>
+                      <th className="px-3 py-3 text-left font-semibold text-orange-700">Asistencia</th>
+                      <th className="px-3 py-3 text-left font-semibold text-orange-700">Estado</th>
+                      <th className="px-3 py-3 text-left font-semibold text-orange-700">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
                     {students.map((student) => (
-                      <tr key={student.id}>
-                        <td className="px-3 py-2 text-xs text-gray-500">{student.id}</td>
-                        <td className="px-3 py-2">
+                      <tr key={student.id} className="hover:bg-orange-50 transition-colors">
+                        <td className="px-3 py-3 text-xs text-gray-500">{student.id}</td>
+                        <td className="px-3 py-3">
                           <div className="flex items-center gap-2">
-                            <div className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+                            <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-xs font-semibold text-white shadow-sm">
                               {student.name.charAt(0)}
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-gray-900">
+                              <p className="text-sm font-medium text-gray-900">
                                 {student.name}
                               </p>
                               <p className="text-xs text-gray-500">{student.email}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-xs text-gray-900">
+                        <td className="px-3 py-3 text-sm font-semibold text-gray-900">
                           {student.averageAttention}%
                         </td>
-                        <td className="px-3 py-2 text-xs text-gray-900">
+                        <td className="px-3 py-3 text-sm text-gray-900">
                           {student.sessionsAttended}/{student.totalSessions}
                         </td>
-                        <td className="px-3 py-2 text-xs">
+                        <td className="px-3 py-3 text-xs">
                           <Badge className={getStatusColor(student.status)}>
                             {student.status === "high" && "Alto"}
                             {student.status === "medium" && "Medio"}
                             {student.status === "low" && "Bajo"}
                           </Badge>
                         </td>
-                        <td className="px-3 py-2 text-xs">
+                        <td className="px-3 py-3 text-xs">
                           <button 
-                            className="text-indigo-600 hover:text-indigo-800 font-medium"
+                            className="text-orange-600 hover:text-orange-800 font-medium transition-colors"
                             onClick={() => openStudentDetails(student)}
                           >
                             Ver detalle
@@ -631,15 +690,15 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           {currentView === "stats" && (
             <div className="animate-in slide-in-from-bottom-5 duration-500">
               <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Análisis del Grupo</h1>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent mb-2">Análisis del Grupo</h1>
                 <p className="text-gray-600">Rendimiento comparativo de los estudiantes</p>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 {/* Ranking de Atención */}
-                <Card>
+                <Card className="shadow-lg">
                   <CardHeader>
-                    <CardTitle>Ranking de Atención</CardTitle>
+                    <CardTitle className="text-orange-700">Ranking de Atención</CardTitle>
                     <CardDescription>Estudiantes con mejor promedio</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
@@ -653,16 +712,16 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                         <XAxis type="number" domain={[0, 100]} />
                         <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 11}} />
                         <Tooltip />
-                        <Bar dataKey="averageAttention" fill="#3b82f6" radius={[0, 4, 4, 0]} name="% Atención" />
+                        <Bar dataKey="averageAttention" fill="#ea580c" radius={[0, 4, 4, 0]} name="% Atención" />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
 
                 {/* Relación Asistencia vs Atención */}
-                <Card>
+                <Card className="shadow-lg">
                   <CardHeader>
-                    <CardTitle>Asistencia vs. Atención</CardTitle>
+                    <CardTitle className="text-orange-700">Asistencia vs. Atención</CardTitle>
                     <CardDescription>Correlación entre participación y enfoque</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
@@ -673,7 +732,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                         <YAxis domain={[0, 100]} name="% Atención" />
                         <Tooltip labelFormatter={(v) => `Sesiones: ${v}`} />
                         <Legend />
-                        <Line type="monotone" dataKey="averageAttention" stroke="#ff6b35" strokeWidth={2} dot={{r:4}} name="Atención Promedio" />
+                        <Line type="monotone" dataKey="averageAttention" stroke="#ea580c" strokeWidth={2} dot={{r:4}} name="Atención Promedio" />
                       </LineChart>
                     </ResponsiveContainer>
                     <p className="text-xs text-center mt-2 text-gray-500">Eje X: Clases Asistidas | Eje Y: % Atención</p>
@@ -687,16 +746,16 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           {currentView === "materials" && (
             <div>
               <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Gestión de Materiales</h1>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent mb-2">Gestión de Materiales</h1>
                 <p className="text-gray-600">Sube y gestiona los materiales para tus cursos</p>
               </div>
 
               <div className="flex items-center space-x-2 mb-8">
-                <BookOpen className="w-5 h-5 text-gray-500" />
+                <BookOpen className="w-5 h-5 text-orange-600" />
                 <Select
                   onValueChange={(value) => setSelectedCourseForMaterials(parseInt(value))}
                 >
-                  <SelectTrigger className="w-96 bg-white">
+                  <SelectTrigger className="w-96 bg-white border-orange-200 focus:ring-orange-500">
                     <SelectValue placeholder="Selecciona un curso para gestionar sus materiales" />
                   </SelectTrigger>
                   <SelectContent>
@@ -741,18 +800,18 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           {currentView === "profile" && (
             <div>
               <div className="mb-8">
-                <h1 className="text-gray-900 mb-2">Mi Perfil</h1>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent mb-2">Mi Perfil</h1>
                 <p className="text-gray-600">Información de tu cuenta</p>
               </div>
 
-              <Card>
+              <Card className="shadow-lg">
                 <CardHeader>
-                  <CardTitle>Información Personal</CardTitle>
+                  <CardTitle className="text-orange-700">Información Personal</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <label className="text-sm text-gray-600">Nombre Completo</label>
-                    <p className="text-gray-900">{(
+                    <label className="text-sm font-medium text-gray-600">Nombre Completo</label>
+                    <p className="text-lg text-gray-900 font-semibold">{(
                           (teacherProfile &&
                             `${teacherProfile.first_name || ''} ${teacherProfile.last_name || ''}`.trim()) ||
                           teacherProfile?.username ||
@@ -761,20 +820,20 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                       </p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Email</label>
-                    <p className="text-gray-900">{teacherProfile?.email || '—'}</p>
+                    <label className="text-sm font-medium text-gray-600">Email</label>
+                    <p className="text-lg text-gray-900">{teacherProfile?.email || '—'}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">ID de Usuario</label>
-                    <p className="text-gray-900">{teacherProfile?.user_code || `USR${String(teacherProfile?.id || '').padStart(3,'0')}` || '—'}</p>
+                    <label className="text-sm font-medium text-gray-600">ID de Usuario</label>
+                    <p className="text-lg text-gray-900">{teacherProfile?.user_code || `USR${String(teacherProfile?.id || '').padStart(3,'0')}` || '—'}</p>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Rol</label>
-                    <Badge>{(teacherProfile?.role || 'Docente').charAt(0).toUpperCase() + (teacherProfile?.role || 'Docente').slice(1)}</Badge>
+                    <label className="text-sm font-medium text-gray-600">Rol</label>
+                    <Badge className="bg-orange-500">{(teacherProfile?.role || 'Docente').charAt(0).toUpperCase() + (teacherProfile?.role || 'Docente').slice(1)}</Badge>
                   </div>
                   <div>
-                    <label className="text-sm text-gray-600">Departamento</label>
-                    <p className="text-gray-900">Docencia</p>
+                    <label className="text-sm font-medium text-gray-600">Departamento</label>
+                    <p className="text-lg text-gray-900">Docencia</p>
                   </div>
                 </CardContent>
               </Card>
@@ -796,24 +855,24 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
           {selectedStudent && (
             <div className="space-y-6">
               {/* Student Info */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg border border-orange-200">
                 <div>
-                  <p className="text-sm text-gray-600">ID</p>
-                  <p className="text-gray-900">{selectedStudent.id}</p>
+                  <p className="text-sm font-medium text-gray-600">ID</p>
+                  <p className="text-lg font-semibold text-gray-900">{selectedStudent.id}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Email</p>
-                  <p className="text-gray-900">{selectedStudent.email}</p>
+                  <p className="text-sm font-medium text-gray-600">Email</p>
+                  <p className="text-lg text-gray-900">{selectedStudent.email}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Atención Promedio</p>
-                  <p className={getAttentionColor(selectedStudent.averageAttention)}>
+                  <p className="text-sm font-medium text-gray-600">Atención Promedio</p>
+                  <p className={`text-lg font-bold ${getAttentionColor(selectedStudent.averageAttention)}`}>
                     {selectedStudent.averageAttention}%
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Asistencia</p>
-                  <p className="text-gray-900">
+                  <p className="text-sm font-medium text-gray-600">Asistencia</p>
+                  <p className="text-lg font-semibold text-gray-900">
                     {selectedStudent.sessionsAttended}/{selectedStudent.totalSessions}
                   </p>
                 </div>
@@ -821,7 +880,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
 
               {/* Evolution Chart */}
               <div>
-                <h3 className="text-gray-900 mb-4">Evolución del Nivel de Atención</h3>
+                <h3 className="text-xl font-semibold text-orange-700 mb-4">Evolución del Nivel de Atención</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={studentHistory}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -848,9 +907,9 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                     <Line 
                       type="monotone" 
                       dataKey="attention" 
-                      stroke="#ff6b35" 
+                      stroke="#ea580c" 
                       strokeWidth={3}
-                      dot={{ fill: '#ff6b35', r: 5 }}
+                      dot={{ fill: '#ea580c', r: 5 }}
                       activeDot={{ r: 7 }}
                     />
                   </LineChart>
@@ -858,8 +917,8 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
               </div>
 
               {/* Recommendations */}
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h3 className="text-gray-900 mb-2">💡 Recomendaciones</h3>
+              <div className="p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg border border-orange-200">
+                <h3 className="text-lg font-semibold text-orange-700 mb-2">💡 Recomendaciones</h3>
                 <ul className="space-y-1 text-sm text-gray-700">
                   <li>• El estudiante muestra una tendencia positiva en su atención</li>
                   <li>• Se recomienda mantener el seguimiento continuo</li>

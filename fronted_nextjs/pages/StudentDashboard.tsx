@@ -25,12 +25,16 @@ import {
   Brain,
   PlayCircle,
   Menu,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight,
+  GripVertical
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { StudentReport } from "./StudentReport";
 import WebcamCapture from "../components/WebcamCapture";
 import CourseMaterials from "../components/CourseMaterials";
+import VideoPlayer from "../components/VideoPlayer";
 import { Toaster, toast } from 'sonner';
 import { motion } from "framer-motion";
 import { QuizModal } from "../components/QuizModal";
@@ -129,10 +133,15 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [extractionProgress, setExtractionProgress] = useState(0);
   const isFeaturesExtractedRef = useRef<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isCameraMinimized, setIsCameraMinimized] = useState(false);
 
   // Estados para Quiz con IA
   const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [quizMaterialId, setQuizMaterialId] = useState<number | null>(null);
+
+  // Estado para el video activo
+  const [activeVideo, setActiveVideo] = useState<any>(null);
 
   useEffect(() => {
     isFeaturesExtractedRef.current = isFeaturesExtracted;
@@ -456,6 +465,27 @@ useEffect(() => {
     }
   };
 
+  // ✅ FIX: Restaurar stream al video cuando se regresa a la vista después de navegar
+  useEffect(() => {
+    console.log('🎥 Estado de cámara:', { 
+      isCameraActive, 
+      hasStream: !!streamRef.current, 
+      hasVideoRef: !!videoRef.current,
+      hasSrcObject: videoRef.current?.srcObject ? 'sí' : 'no',
+      isFeaturesExtracted,
+      isAnalyzing
+    });
+    
+    if (isCameraActive && streamRef.current && videoRef.current) {
+      // Si el video no tiene srcObject pero tenemos el stream, reconectarlo
+      if (!videoRef.current.srcObject) {
+        console.log('🔧 Restaurando stream al video element');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        videoRef.current.srcObject = streamRef.current as any;
+      }
+    }
+  }, [isCameraActive, currentView, isFeaturesExtracted, isAnalyzing]); // Se ejecuta cuando cambia la vista, análisis o features
+
   const startAnalysis = () => {
     if (!isCameraActive) {
       alert("Primero debes activar la cámara");
@@ -680,14 +710,19 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
       <Toaster position="top-right" />
       
       {/* Mobile Header */}
-      <div className="lg:hidden bg-gradient-to-r from-gray-900 to-black text-white p-4 flex items-center justify-between sticky top-0 z-50">
-        <div>
-          <h2 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-cyan-500 bg-clip-text text-transparent">FocusLearn</h2>
-          <p className="text-gray-400 text-xs">Panel Estudiante</p>
+      <div className="lg:hidden bg-[#1a1a1a] border-b border-gray-800 text-white p-4 flex items-center justify-between sticky top-0 z-50 shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-lg flex items-center justify-center">
+            <Brain className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">FocusLearn</h2>
+            <p className="text-gray-500 text-xs">Panel Estudiante</p>
+          </div>
         </div>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="text-white p-2 hover:bg-gray-800 rounded-lg transition-colors"
+          className="text-gray-400 hover:text-white p-2 hover:bg-gray-800 rounded-lg transition-colors"
         >
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
@@ -697,47 +732,80 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
         {/* Sidebar - Desktop y Mobile */}
         <aside className={`
           fixed lg:static inset-y-0 left-0 z-40
-          w-64 bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl
-          transform transition-transform duration-300 ease-in-out
+          ${isSidebarCollapsed ? 'w-20' : 'w-64'} 
+          min-h-screen flex flex-col
+          bg-[#1a1a1a] text-white shadow-2xl
+          ${isSidebarCollapsed ? 'px-3 py-6' : 'px-4 py-6'}
+          transform transition-all duration-300 ease-in-out
           lg:transform-none
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
-          <div className="mb-8 hidden lg:block">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-cyan-500 bg-clip-text text-transparent">FocusLearn</h2>
-            <p className="text-gray-400 text-sm mt-1">Panel Estudiante</p>
+          <div className={`mb-6 hidden lg:flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} pb-4 border-b border-gray-800`}>
+            <div className={`${isSidebarCollapsed ? 'hidden' : 'flex items-center gap-3'}`}>
+              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-lg flex items-center justify-center">
+                <Brain className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">FocusLearn</h2>
+                <p className="text-gray-500 text-xs">Panel Estudiante</p>
+              </div>
+            </div>
+            {!isSidebarCollapsed ? (
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-800"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-800"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
-          <nav className="space-y-2">
+          <nav className="space-y-1">
             <button
               onClick={() => {
                 setCurrentView("dashboard");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "dashboard" 
-                  ? "bg-cyan-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-cyan-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Dashboard"
             >
-              <LayoutDashboard className="w-5 h-5" />
-              <span>Dashboard</span>
+              <LayoutDashboard className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "dashboard" ? "text-cyan-500" : "group-hover:text-cyan-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Dashboard</span>
             </button>
 
             <button
               onClick={() => {
                 setCurrentView("classes");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "classes" 
-                  ? "bg-cyan-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-cyan-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Mis Clases"
             >
-              <Video className="w-5 h-5" />
-              <span>Mis Clases</span>
-              {selectedCourse && (
-                <Badge className="ml-auto bg-cyan-600 text-white">1</Badge>
+              <Video className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "classes" ? "text-cyan-500" : "group-hover:text-cyan-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Mis Clases</span>
+              {selectedCourse && !isSidebarCollapsed && (
+                <Badge className="ml-auto bg-cyan-500 text-white text-xs px-2">1</Badge>
               )}
             </button>
 
@@ -745,59 +813,74 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
               onClick={() => {
                 setCurrentView("stats");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "stats" 
-                  ? "bg-cyan-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-cyan-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Estadísticas"
             >
-              <BarChart3 className="w-5 h-5" />
-              <span>Estadísticas</span>
+              <BarChart3 className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "stats" ? "text-cyan-500" : "group-hover:text-cyan-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Estadísticas</span>
             </button>
 
             <button
               onClick={() => {
                 setCurrentView("report");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "report" 
-                  ? "bg-cyan-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-cyan-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Mi Reporte"
             >
-              <FileText className="w-5 h-5" />
-              <span>Mi Reporte</span>
+              <FileText className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "report" ? "text-cyan-500" : "group-hover:text-cyan-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Mi Reporte</span>
             </button>
 
             <button
               onClick={() => {
                 setCurrentView("profile");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "profile" 
-                  ? "bg-cyan-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-cyan-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Mi Perfil"
             >
-              <User className="w-5 h-5" />
-              <span>Mi Perfil</span>
+              <User className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "profile" ? "text-cyan-500" : "group-hover:text-cyan-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Mi Perfil</span>
             </button>
           </nav>
 
-          <div className="mt-auto pt-8">
-            <Separator className="mb-4 bg-gray-700" />
+          {/* Divider */}
+          <div className="my-4 border-t border-gray-800"></div>
+
+          <div className="mt-auto pt-4">
             <button 
               onClick={() => {
                 onLogout?.();
                 setIsMobileMenuOpen(false);
               }}
-              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors"
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg text-gray-400 hover:bg-red-900 hover:bg-opacity-20 hover:text-red-400 transition-all duration-200 border-l-4 border-transparent hover:border-red-500 group`}
+              title="Cerrar Sesión"
             >
-              <LogOut className="w-5 h-5" />
-              <span>Cerrar Sesión</span>
+              <LogOut className="w-5 h-5 flex-shrink-0 group-hover:text-red-400" />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Cerrar Sesión</span>
             </button>
           </div>
         </aside>
@@ -805,64 +888,163 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
         {/* Overlay para cerrar menú en móvil */}
         {isMobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            className="fixed inset-0 bg-black bg-opacity-70 z-30 lg:hidden backdrop-blur-sm"
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {currentView === "dashboard" && (
-            <div>
-              <div className="mb-6 sm:mb-8">
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Bienvenido, {user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}` : (user.username || user.email)) : 'Estudiante'}</h1>
-                <p className="text-sm sm:text-base text-gray-600">Selecciona un curso para comenzar</p>
+            <div className="bg-gray-50 min-h-screen -m-8 p-8">
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">Panel de Estudiante</h1>
+                <p className="text-gray-500">Bienvenido, {user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}` : (user.username || user.email)) : 'Estudiante'}</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-                <Card className="border-l-4 border-l-cyan-500">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm text-gray-600">Eventos Pomodoro</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <span className="text-3xl font-bold text-cyan-600">{pomodoroMetrics ? pomodoroMetrics.total_events : '—'}</span>
-                      <TrendingUp className="w-5 h-5 text-green-600" />
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">Totales</p>
-                  </CardContent>
-                </Card>
+              {/* Tarjetas grandes principales */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                  <Card className="relative overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-cyan-400 to-cyan-500 text-white h-40">
+                    <CardContent className="p-6 h-full flex flex-col justify-between">
+                      <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center mb-4">
+                        <TrendingUp className="w-8 h-8 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold mb-1">Eventos</h3>
+                        <div className="flex items-center justify-between">
+                          <span className="text-3xl font-bold">{pomodoroMetrics ? pomodoroMetrics.total_events : '0'}</span>
+                          <Activity className="w-5 h-5 text-white opacity-70" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
 
-                <Card className="border-l-4 border-l-green-500">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm text-gray-600">Pausas Automáticas</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <span className="text-3xl font-bold text-green-600">{pomodoroMetrics ? pomodoroMetrics.auto_pauses : '—'}</span>
-                      <BookOpen className="w-5 h-5 text-green-600" />
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">Registradas</p>
-                  </CardContent>
-                </Card>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                  <Card className="relative overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-amber-400 to-orange-500 text-white h-40">
+                    <CardContent className="p-6 h-full flex flex-col justify-between">
+                      <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center mb-4">
+                        <BookOpen className="w-8 h-8 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold mb-1">Pausas</h3>
+                        <div className="flex items-center justify-between">
+                          <span className="text-3xl font-bold">{pomodoroMetrics ? pomodoroMetrics.auto_pauses : '0'}</span>
+                          <Activity className="w-5 h-5 text-white opacity-70" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
 
-                <Card className="border-l-4 border-l-blue-500">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm text-gray-600">Tiempo Efectivo</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <span className="text-3xl font-bold text-blue-600">{pomodoroMetrics ? `${(pomodoroMetrics.effective_seconds / 3600).toFixed(1)}h` : '—'}</span>
-                      <Clock className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">Horas registradas</p>
-                  </CardContent>
-                </Card>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                  <Card className="relative overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-400 to-blue-500 text-white h-40">
+                    <CardContent className="p-6 h-full flex flex-col justify-between">
+                      <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center mb-4">
+                        <Clock className="w-8 h-8 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold mb-1">Tiempo</h3>
+                        <div className="flex items-center justify-between">
+                          <span className="text-3xl font-bold">{pomodoroMetrics ? `${(pomodoroMetrics.effective_seconds / 3600).toFixed(1)}h` : '0h'}</span>
+                          <Activity className="w-5 h-5 text-white opacity-70" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                  <Card className="relative overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-pink-400 to-purple-500 text-white h-40">
+                    <CardContent className="p-6 h-full flex flex-col justify-between">
+                      <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center mb-4">
+                        <BookOpen className="w-8 h-8 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold mb-1">Cursos</h3>
+                        <div className="flex items-center justify-between">
+                          <span className="text-3xl font-bold">{courses.length}</span>
+                          <Activity className="w-5 h-5 text-white opacity-70" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               </div>
 
-              <Card className="mb-8">
-                <CardHeader>
-                  <CardTitle>Cursos Disponibles</CardTitle>
-                  <CardDescription>Selecciona un curso para iniciar la sesión de monitoreo</CardDescription>
+              {/* Secciones de acceso rápido */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card className="border-0 shadow-sm hover:shadow-lg transition-all bg-white cursor-pointer" onClick={() => setCurrentView("classes")}>
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-cyan-500 rounded-full flex items-center justify-center mb-3">
+                        <Video className="w-10 h-10 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-gray-800 text-sm">Mis Clases</h3>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card className="border-0 shadow-sm hover:shadow-lg transition-all bg-white cursor-pointer" onClick={() => setCurrentView("stats")}>
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-cyan-500 rounded-full flex items-center justify-center mb-3">
+                        <BarChart3 className="w-10 h-10 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-gray-800 text-sm">Estadísticas</h3>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card className="border-0 shadow-sm hover:shadow-lg transition-all bg-white cursor-pointer" onClick={() => setCurrentView("report")}>
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-cyan-500 rounded-full flex items-center justify-center mb-3">
+                        <FileText className="w-10 h-10 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-gray-800 text-sm">Mi Reporte</h3>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card className="border-0 shadow-sm hover:shadow-lg transition-all bg-white cursor-pointer" onClick={() => setCurrentView("profile")}>
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-cyan-500 rounded-full flex items-center justify-center mb-3">
+                        <User className="w-10 h-10 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-gray-800 text-sm">Mi Perfil</h3>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card className="border-0 shadow-sm hover:shadow-lg transition-all bg-white cursor-pointer">
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-cyan-500 rounded-full flex items-center justify-center mb-3">
+                        <Clock className="w-10 h-10 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-gray-800 text-sm">Horario</h3>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card className="border-0 shadow-sm hover:shadow-lg transition-all bg-white cursor-pointer">
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-cyan-500 rounded-full flex items-center justify-center mb-3">
+                        <Activity className="w-10 h-10 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-gray-800 text-sm">Actividad</h3>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </div>
+
+              <Card className="mb-8 border-0 shadow-lg bg-white">
+                <CardHeader className="border-b bg-gray-50">
+                  <CardTitle className="text-xl font-bold text-gray-800">Cursos Disponibles</CardTitle>
+                  <CardDescription className="text-gray-500">Selecciona un curso para iniciar la sesión de monitoreo</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {courses.length === 0 ? (
@@ -878,18 +1060,19 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {courses.map((course) => (
                         <motion.div
                           key={course.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          whileHover={{ x: 4 }}
                           className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
                             selectedCourse?.id === course.id
-                              ? "bg-gradient-to-r from-cyan-50 to-cyan-100 border-cyan-300 shadow-md"
+                              ? "bg-cyan-50 border-cyan-500 shadow-md"
                               : course.status === "active"
-                              ? "bg-gradient-to-r from-green-50 to-green-100 border-green-200"
-                              : "bg-gray-50 border-gray-200"
+                              ? "bg-green-50 border-green-300"
+                              : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm"
                           }`}
                         >
                           <div className="flex items-center space-x-4">
@@ -909,12 +1092,12 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                           </div>
                           <div className="flex items-center gap-3">
                             {course.status === "active" && (
-                              <Badge className="bg-green-600">En vivo</Badge>
+                              <Badge className="bg-green-500 text-white">En vivo</Badge>
                             )}
                             {selectedCourse?.id === course.id ? (
-                              <Badge className="bg-cyan-600">Seleccionado</Badge>
+                              <Badge className="bg-cyan-500 text-white">Seleccionado</Badge>
                             ) : (
-                              <Button onClick={() => handleSelectCourse(course)}>
+                              <Button onClick={() => handleSelectCourse(course)} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
                                 Seleccionar
                               </Button>
                             )}
@@ -935,37 +1118,152 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                 </Alert>
               )}
 
-              <Card className="border-2 border-cyan-200 bg-gradient-to-br from-cyan-50 to-cyan-100">
-                <CardHeader>
-                  <div className="flex items-center space-x-2">
-                    <FileText className="w-5 h-5 text-orange-600" />
-                    <CardTitle>Reporte Individual</CardTitle>
-                  </div>
-                  <CardDescription className="text-gray-700">
-                    Consulta tu historial de atención
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-700 mb-4">
-                    Revisa gráficos detallados, análisis temporal y recomendaciones personalizadas para mejorar tu desempeño.
-                  </p>
-                  <Button 
-                    onClick={() => setCurrentView("report")}
-                    className="w-full"
-                  >
-                    <FileText className="w-4 h-4 mr-2" />
-                    Ver mi reporte completo
-                  </Button>
-                </CardContent>
-              </Card>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="border-0 shadow-lg bg-white">
+                  <CardHeader className="border-b bg-gray-50">
+                    <CardTitle className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-cyan-500" />
+                      Reporte Individual
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <p className="text-sm text-gray-600 mb-4">
+                      Revisa gráficos detallados y análisis temporal de tu desempeño.
+                    </p>
+                    <Button 
+                      onClick={() => setCurrentView("report")}
+                      className="w-full bg-cyan-500 hover:bg-cyan-600"
+                    >
+                      Ver mi reporte
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg bg-white">
+                  <CardHeader className="border-b bg-gray-50">
+                    <CardTitle className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-cyan-500" />
+                      Inicio Rápido
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <p className="text-sm text-gray-600 mb-4">
+                      {selectedCourse ? `Curso seleccionado: ${selectedCourse.name}` : "Selecciona un curso para comenzar"}
+                    </p>
+                    <Button 
+                      onClick={() => setCurrentView("classes")}
+                      className="w-full bg-cyan-500 hover:bg-cyan-600"
+                      disabled={!selectedCourse}
+                    >
+                      Ir a clase virtual
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
 
           {currentView === "classes" && (
-            <div>
-              <div className="mb-6 sm:mb-8">
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Sala de Clase Virtual</h1>
-                <p className="text-sm sm:text-base text-gray-600">
+            <div className="bg-gray-50 min-h-screen -m-8 p-8 relative">
+              {/* Cámara Minimizada Flotante */}
+              {isFeaturesExtracted && isAnalyzing && isCameraActive && (
+                <motion.div
+                  drag
+                  dragConstraints={{
+                    top: 0,
+                    left: 0,
+                    right: typeof window !== 'undefined' ? window.innerWidth - 256 : 1000,
+                    bottom: typeof window !== 'undefined' ? window.innerHeight - 400 : 600
+                  }}
+                  dragElastic={0.1}
+                  dragTransition={{ bounceStiffness: 300, bounceDamping: 20 }}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="fixed top-20 right-6 z-50 w-64 bg-white rounded-xl shadow-2xl overflow-hidden border-2 border-cyan-500 cursor-move"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="bg-cyan-500 px-3 py-2 flex items-center justify-between cursor-grab active:cursor-grabbing">
+                    <div className="flex items-center gap-2">
+                      <GripVertical className="w-4 h-4 text-white opacity-70" />
+                      <Camera className="w-4 h-4 text-white" />
+                      <span className="text-white font-semibold text-sm">Mi Cámara</span>
+                    </div>
+                    <Badge className="bg-green-500 text-white px-2 py-0.5 text-xs">
+                      En vivo
+                    </Badge>
+                  </div>
+                  <div className="relative bg-black aspect-video" onPointerDown={(e) => e.stopPropagation()}>
+                    <video
+                      ref={videoRef}
+                      className="block w-full h-full object-cover pointer-events-none"
+                      autoPlay
+                      muted
+                      playsInline
+                      onLoadedMetadata={() => console.log('📹 Video cargado en cámara minimizada')}
+                    />
+                    {!streamRef.current && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-cyan-900 to-cyan-700">
+                        <div className="text-center text-white p-2">
+                          <Camera className="w-8 h-8 mx-auto mb-2 animate-pulse" />
+                          <p className="text-xs">Modo Simulación</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-gray-50 px-3 py-2 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Estado:</span>
+                      <Badge className={`text-xs ${
+                        pomodoroPhase === 'trabajo' 
+                          ? 'bg-cyan-500 text-white' 
+                          : pomodoroPhase === 'descanso_corto' || pomodoroPhase === 'descanso_largo'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-purple-500 text-white'
+                      }`}>
+                        {getPhaseName()} #{pomodoroSession}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Tiempo:</span>
+                      <span className="text-lg font-bold text-cyan-600">
+                        {formatPomodoroTime(pomodoroTimeLeft)}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={togglePomodoro}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className={`flex-1 text-xs ${
+                          isPomodoroActive 
+                            ? 'bg-amber-500 hover:bg-amber-600' 
+                            : 'bg-cyan-500 hover:bg-cyan-600'
+                        } text-white`}
+                      >
+                        {isPomodoroActive ? "Pausar" : "Iniciar"}
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* WebcamCapture Component - Siempre activo cuando la cámara está encendida */}
+              <div className="hidden">
+                {isCameraActive && (
+                  <WebcamCapture
+                    videoRef={videoRef}
+                    isAnalyzing={isAnalyzing}
+                    isCameraActive={isCameraActive}
+                    onFeaturesExtracted={handleFeaturesExtracted}
+                    onAttentionUpdate={handleAttentionUpdate}
+                    classSessionId={selectedCourse?.id ?? null}
+                  />
+                )}
+              </div>
+              
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">Sala de Clase Virtual</h1>
+                <p className="text-gray-500">
                   {selectedCourse 
                     ? `Configuración y análisis - ${selectedCourse.name}`
                     : "Activa tu cámara y selecciona un curso para comenzar"
@@ -975,36 +1273,73 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 <div className="lg:col-span-2 space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Video en Vivo</CardTitle>
-                      <CardDescription>Tu cámara - Configuración de análisis</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+                  {/* Reproductor de Video Principal */}
+                  {isFeaturesExtracted && isAnalyzing ? (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <Card className="border-0 shadow-lg bg-white">
+                        <CardHeader className="border-b bg-gray-50">
+                          <CardTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <PlayCircle className="w-6 h-6 text-cyan-500" />
+                            Contenido de Clase
+                          </CardTitle>
+                          <CardDescription className="text-gray-500">Recursos educativos del curso</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          {activeVideo ? (
+                            <VideoPlayer material={activeVideo} />
+                          ) : (
+                            <div className="relative bg-gradient-to-br from-gray-800 via-gray-900 to-black aspect-video flex items-center justify-center">
+                              <div className="text-center text-white px-6 py-12">
+                                <div className="w-24 h-24 mx-auto mb-6 bg-cyan-500 bg-opacity-20 rounded-full flex items-center justify-center">
+                                  <PlayCircle className="w-16 h-16 text-cyan-400" />
+                                </div>
+                                <h3 className="text-3xl font-bold mb-3 text-white">Reproductor de Video</h3>
+                                <p className="text-gray-300 mb-2 text-lg">Los videos del curso se mostrarán aquí</p>
+                                <p className="text-sm text-gray-400">Selecciona un video desde "Material del Curso" abajo</p>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ) : (
+                    <Card className="border-0 shadow-lg bg-white">
+                      <CardHeader className="border-b bg-gray-50">
+                        <CardTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                          <Camera className="w-6 h-6 text-cyan-500" />
+                          Video en Vivo
+                        </CardTitle>
+                        <CardDescription className="text-gray-500">Tu cámara - Configuración de análisis</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
                         {isCameraActive && isFeaturesExtracted && (
                           <motion.div
-                            initial={{ opacity: 0, y: -20 }}
-                            animate={{ opacity: 1, y: 0 }}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
                             className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10 max-w-[calc(100%-1rem)] sm:max-w-none"
                           >
-                            <Card className="bg-gradient-to-br from-cyan-500 to-cyan-600 border-cyan-700 shadow-lg">
-                              <CardContent className="p-2 sm:p-4">
-                                <div className="flex items-center gap-2 sm:gap-3">
-                                  <Clock className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                            <Card className="bg-cyan-500 border-0 shadow-xl">
+                              <CardContent className="p-3 sm:p-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-white bg-opacity-20 rounded-lg">
+                                    <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                                  </div>
                                   <div>
-                                    <p className="text-xs sm:text-sm text-cyan-100">
+                                    <p className="text-xs text-white font-medium opacity-90">
                                       {getPhaseName()} #{pomodoroSession}
                                     </p>
-                                    <p className="text-lg sm:text-2xl font-bold text-white">
+                                    <p className="text-xl sm:text-2xl font-bold text-white">
                                       {formatPomodoroTime(pomodoroTimeLeft)}
                                     </p>
                                   </div>
                                   <Button
                                     size="sm"
-                                    variant="secondary"
                                     onClick={togglePomodoro}
-                                    className="ml-1 sm:ml-2 text-xs sm:text-sm px-2 sm:px-3"
+                                    className="ml-2 bg-white text-cyan-600 hover:bg-gray-100 font-semibold shadow-md"
                                   >
                                     {isPomodoroActive ? "Pausar" : "Iniciar"}
                                   </Button>
@@ -1021,17 +1356,6 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                           muted
                           playsInline
                         />
-                        
-                        {isCameraActive && (
-                          <WebcamCapture
-                            videoRef={videoRef}
-                            isAnalyzing={isAnalyzing}
-                            isCameraActive={isCameraActive}
-                            onFeaturesExtracted={handleFeaturesExtracted}
-                            onAttentionUpdate={handleAttentionUpdate}
-                            classSessionId={selectedCourse?.id ?? null}
-                          />
-                        )}
                         
                         {!isCameraActive && (
                           <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
@@ -1092,20 +1416,23 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
                         {isCameraActive && isFeaturesExtracted && (
                           <div className="absolute top-4 left-4">
-                            <Badge className="bg-green-500">
-                              <Activity className="w-3 h-3 mr-1" />
-                              Analizando en vivo
+                            <Badge className="bg-green-500 text-white px-3 py-1.5 shadow-md flex items-center gap-1.5">
+                              <Activity className="w-3 h-3" />
+                              <span className="font-medium">En vivo</span>
                             </Badge>
                           </div>
                         )}
-                      </div>
+                        </div>
 
-                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-4">
-                        <Button
-                          onClick={toggleCamera}
-                          variant={isCameraActive ? "destructive" : "default"}
-                          className="flex-1 text-sm sm:text-base"
-                        >
+                        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                          <Button
+                            onClick={toggleCamera}
+                            className={`flex-1 text-sm sm:text-base py-5 font-medium shadow-sm ${
+                              isCameraActive 
+                                ? "bg-red-500 hover:bg-red-600 text-white" 
+                                : "bg-cyan-500 hover:bg-cyan-600 text-white"
+                            }`}
+                          >
                           {isCameraActive ? (
                             <>
                               <CameraOff className="w-4 h-4 mr-2" />
@@ -1119,14 +1446,13 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                               <span className="sm:hidden">Activar</span>
                             </>
                           )}
-                        </Button>
+                          </Button>
 
-                        <Button
-                          onClick={isAnalyzing ? stopAnalysis : startAnalysis}
-                          variant={isFeaturesExtracted ? "secondary" : "default"}
-                          className="flex-1 text-sm sm:text-base"
-                          disabled={!isCameraActive || !selectedCourse}
-                        >
+                          <Button
+                            onClick={isAnalyzing ? stopAnalysis : startAnalysis}
+                            className="flex-1 text-sm sm:text-base py-5 font-medium shadow-sm bg-cyan-500 hover:bg-cyan-600 text-white"
+                            disabled={!isCameraActive || !selectedCourse}
+                          >
                           {isAnalyzing ? (
                             <>
                               <PlayCircle className="w-4 h-4 mr-2" />
@@ -1146,10 +1472,10 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                       {!isPomodoroActive && pomodoroTimeLeft === 0 && selectedCourse && (
                         <Button
                           onClick={startNewStudySession}
-                          className="mt-3 w-full text-sm sm:text-base"
+                          className="mt-4 w-full text-sm sm:text-base py-5 bg-cyan-500 hover:bg-cyan-600 text-white shadow-sm font-medium"
                           disabled={!isFeaturesExtracted}
                         >
-                          Iniciar nueva sesion
+                          Iniciar nueva sesión
                         </Button>
                       )}
 
@@ -1163,16 +1489,21 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                       )}
                     </CardContent>
                   </Card>
+                  )}
 
                   {isFeaturesExtracted && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
                     >
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Gráfico de Atención en Tiempo Real</CardTitle>
-                          <CardDescription>Últimos 40 segundos</CardDescription>
+                      <Card className="border-0 shadow-lg bg-white">
+                        <CardHeader className="border-b bg-gray-50">
+                          <CardTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <Activity className="w-5 h-5 text-cyan-500" />
+                            Atención en Tiempo Real
+                          </CardTitle>
+                          <CardDescription className="text-gray-500">Últimos 40 segundos</CardDescription>
                         </CardHeader>
                         <CardContent>
                           <ResponsiveContainer width="100%" height={200}>
@@ -1222,23 +1553,28 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                       animate={{ opacity: 1, y: 0 }}
                       className="mt-6"
                     >
-                      <CourseMaterials courseId={selectedCourse.id} />
+                      <CourseMaterials 
+                        courseId={selectedCourse.course_id}
+                        onVideoSelect={(material) => setActiveVideo(material)}
+                      />
                     </motion.div>
                   )}
                 </div>
 
                 <div className="space-y-6">
                   {!selectedCourse ? (
-                    <Card className="border-2 border-cyan-300 bg-gradient-to-br from-cyan-50 to-cyan-100">
+                    <Card className="border-0 shadow-lg bg-white">
                       <CardContent className="p-6 text-center">
-                        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-orange-500" />
-                        <h3 className="font-semibold text-gray-900 mb-2">No tienes una clase escogida</h3>
-                        <p className="text-sm text-gray-700 mb-4">
-                          Para iniciar el análisis de atención, primero debes seleccionar un curso desde el Dashboard.
+                        <div className="w-16 h-16 mx-auto mb-4 bg-amber-100 rounded-full flex items-center justify-center">
+                          <AlertCircle className="w-8 h-8 text-amber-600" />
+                        </div>
+                        <h3 className="font-bold text-lg text-gray-800 mb-2">Sin curso seleccionado</h3>
+                        <p className="text-sm text-gray-500 mb-6">
+                          Selecciona un curso desde el Dashboard para iniciar.
                         </p>
                         <Button 
                           onClick={() => setCurrentView("dashboard")}
-                          className="w-full"
+                          className="w-full bg-cyan-500 hover:bg-cyan-600 py-5"
                         >
                           <BookOpen className="w-4 h-4 mr-2" />
                           Ir a Cursos
@@ -1247,52 +1583,54 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                     </Card>
                   ) : (
                     <>
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-sm">Información de la Sesión</CardTitle>
+                      <Card className="border-0 shadow-lg bg-white">
+                        <CardHeader className="border-b bg-gray-50">
+                          <CardTitle className="text-lg font-bold text-gray-800">Información de Sesión</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Clase:</span>
-                            <span className="font-medium text-gray-900">{selectedCourse.name}</span>
+                        <CardContent className="space-y-3 pt-4">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center py-2 border-b">
+                              <span className="text-sm text-gray-600">Clase</span>
+                              <span className="font-medium text-gray-800 text-sm">{selectedCourse.name}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b">
+                              <span className="text-sm text-gray-600">Profesor</span>
+                              <span className="font-medium text-gray-800 text-sm">{selectedCourse.professor}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b">
+                              <span className="text-sm text-gray-600">Horario</span>
+                              <span className="font-medium text-gray-800 text-sm">{selectedCourse.time}</span>
+                            </div>
                           </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Profesor:</span>
-                            <span className="font-medium text-gray-900">{selectedCourse.professor}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Horario:</span>
-                            <span className="font-medium text-gray-900">{selectedCourse.time}</span>
-                          </div>
-                          <Separator />
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Estado Cámara:</span>
-                            <Badge variant={isCameraActive ? "default" : "secondary"}>
-                              {isCameraActive ? "Activa" : "Inactiva"}
-                            </Badge>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Features:</span>
-                            <Badge variant={isFeaturesExtracted ? "default" : "secondary"}>
-                              {isFeaturesExtracted ? "Extraídos" : "Pendiente"}
-                            </Badge>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Análisis:</span>
-                            <Badge variant={isFeaturesExtracted ? "default" : "secondary"}>
-                              {isFeaturesExtracted ? "En progreso" : "No iniciado"}
-                            </Badge>
+                          <div className="pt-3 space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-600">Cámara:</span>
+                              <Badge className={isCameraActive ? "bg-green-500" : "bg-gray-400"}>
+                                {isCameraActive ? "Activa" : "Inactiva"}
+                              </Badge>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-600">Features:</span>
+                              <Badge className={isFeaturesExtracted ? "bg-cyan-500" : "bg-gray-400"}>
+                                {isFeaturesExtracted ? "Extraídos" : "Pendiente"}
+                              </Badge>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-600">Análisis:</span>
+                              <Badge className={isFeaturesExtracted ? "bg-cyan-500" : "bg-gray-400"}>
+                                {isFeaturesExtracted ? "Activo" : "Inactivo"}
+                              </Badge>
+                            </div>
                           </div>
                           <Button 
                             size="sm" 
-                            variant="outline"
-                            className="w-full mt-2"
+                            className="w-full mt-3 bg-cyan-500 hover:bg-cyan-600 py-4"
                             onClick={async () => {
                               if (!selectedCourse) return;
                               try {
                                 const res = await api.get('/student/pomodoro-metrics/');
                                 const d = res.data;
-                                toast(`📊 Eventos: ${d.total_events} · Pausas auto: ${d.auto_pauses} · Tiempo efectivo: ${Math.round(d.effective_seconds/60)} min`);
+                                toast(`Eventos: ${d.total_events} · Pausas: ${d.auto_pauses} · Tiempo: ${Math.round(d.effective_seconds/60)} min`);
                               } catch (e) {
                                 toast.error('Error al obtener métricas');
                               }
@@ -1305,27 +1643,33 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
                       {isFeaturesExtracted && (
                         <motion.div
-                          initial={{ opacity: 0, scale: 0.95 }}
+                          initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.5 }}
                         >
-                          <Card className={`border-2 ${getAttentionBgColor()}`}>
-                            <CardHeader>
-                              <CardTitle className="text-sm">Nivel de Atención</CardTitle>
+                          <Card className={`border-0 shadow-lg ${
+                            attentionLevel === "high" 
+                              ? "bg-green-50" 
+                              : attentionLevel === "medium" 
+                              ? "bg-yellow-50" 
+                              : "bg-red-50"
+                          }`}>
+                            <CardHeader className="border-b bg-white">
+                              <CardTitle className="text-lg font-bold text-gray-800">Nivel de Atención</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                              <div className="text-center">
-                                <div className={`text-5xl font-bold mb-2 ${getAttentionColor()}`}>
+                            <CardContent className="pt-6">
+                              <div className="text-center py-4">
+                                <div className={`text-5xl font-bold mb-3 ${getAttentionColor()}`}>
                                   {attentionScore}%
                                 </div>
                                 <Badge 
-                                  variant={attentionLevel === "high" ? "default" : "secondary"}
-                                  className={`${
+                                  className={`text-base px-4 py-2 ${
                                     attentionLevel === "high" 
-                                      ? "bg-green-600" 
+                                      ? "bg-green-500" 
                                       : attentionLevel === "medium" 
-                                      ? "bg-yellow-600" 
-                                      : "bg-red-600"
-                                  } text-white`}
+                                      ? "bg-yellow-500" 
+                                      : "bg-red-500"
+                                  } text-white font-medium`}
                                 >
                                   {attentionLevel === "high" && "Atento"}
                                   {attentionLevel === "medium" && "Moderado"}
@@ -1334,7 +1678,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                               </div>
                               <Progress 
                                 value={attentionScore} 
-                                className="mt-4 h-3"
+                                className="mt-5 h-3"
                               />
                             </CardContent>
                           </Card>
@@ -1342,45 +1686,55 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                       )}
 
                       {showLowAttentionAlert && isFeaturesExtracted && (
-                        <Alert className="border-red-500 bg-red-50 animate-pulse">
+                        <Alert className="border-l-4 border-l-red-500 bg-red-50 shadow-md">
                           <AlertCircle className="h-4 w-4 text-red-600" />
-                          <AlertDescription className="text-red-700">
-                            ⚠️ <strong>Nivel de atención bajo</strong>
-                            <br />
-                            Intenta concentrarte en la clase
+                          <AlertDescription className="text-red-800 text-sm">
+                            <strong>Atención baja</strong> - Intenta concentrarte
                           </AlertDescription>
                         </Alert>
                       )}
 
                       {showMediumAttentionAlert && isFeaturesExtracted && (
-                        <Alert className="border-yellow-400 bg-yellow-50 animate-pulse">
+                        <Alert className="border-l-4 border-l-yellow-500 bg-yellow-50 shadow-md">
                           <AlertCircle className="h-4 w-4 text-yellow-600" />
-                          <AlertDescription className="text-yellow-700">
-                            ⚠️ Nivel de atención moderado — Mantén el enfoque
+                          <AlertDescription className="text-yellow-800 text-sm">
+                            <strong>Atención moderada</strong> - Mantén el enfoque
                           </AlertDescription>
                         </Alert>
                       )}
 
                       {autoPauseTriggered && (
-                        <Alert className="border-cyan-400 bg-cyan-50">
+                        <Alert className="border-l-4 border-l-cyan-500 bg-cyan-50 shadow-md">
                           <AlertCircle className="h-4 w-4 text-cyan-600" />
-                          <AlertDescription className="text-cyan-700">
-                            🔔 Pausa adelantada automáticamente por distracción sostenida
+                          <AlertDescription className="text-cyan-800 text-sm">
+                            <strong>Pausa automática</strong> - Distracción detectada
                           </AlertDescription>
                         </Alert>
                       )}
                     </>
                   )}
 
-                  <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200">
-                    <CardHeader>
-                      <CardTitle className="text-sm">💡 Consejos</CardTitle>
+                  <Card className="border-0 shadow-lg bg-white">
+                    <CardHeader className="border-b bg-gray-50">
+                      <CardTitle className="text-lg font-bold text-gray-800">Consejos</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-2 text-sm text-gray-700">
-                      <p>• Mantén la cámara encendida</p>
-                      <p>• Evita distracciones externas</p>
-                      <p>• Mantén contacto visual</p>
-                      <p>• Toma notas activamente</p>
+                    <CardContent className="space-y-2 text-sm text-gray-600 pt-4">
+                      <div className="flex items-center gap-2 py-2 border-b">
+                        <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
+                        <p>Mantén la cámara encendida</p>
+                      </div>
+                      <div className="flex items-center gap-2 py-2 border-b">
+                        <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
+                        <p>Evita distracciones externas</p>
+                      </div>
+                      <div className="flex items-center gap-2 py-2 border-b">
+                        <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
+                        <p>Mantén contacto visual</p>
+                      </div>
+                      <div className="flex items-center gap-2 py-2">
+                        <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
+                        <p>Toma notas activamente</p>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>

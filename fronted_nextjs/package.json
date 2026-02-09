@@ -10,6 +10,7 @@
     "create-demo-model": "node scripts/create_demo_model.js"
   },
   "dependencies": {
+    "@greatsumini/react-facebook-login": "^3.3.3",
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/drawing_utils": "^0.3.1675466124",
     "@mediapipe/face_mesh": "^0.4.1657299874",
@@ -38,6 +39,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@react-oauth/google": "^0.12.1",
     "@tensorflow/tfjs": "^4.10.0",
     "@tensorflow/tfjs-backend-webgl": "^4.10.0",
     "axios": "^1.13.2",
@@ -59,13 +61,12 @@
     "react-dom": "19.2.0",
     "react-hook-form": "^7.68.0",
     "react-pdf": "^10.2.0",
+    "react-player": "^3.4.0",
     "react-resizable-panels": "^3.0.6",
     "recharts": "^3.5.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
-    "vaul": "^1.1.2",
-    "@react-oauth/google": "^0.12.1",
-    "@greatsumini/react-facebook-login": "^3.3.3"
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -27,7 +27,10 @@ import {
   AlertCircle,
   Shield,
   Menu,
-  X
+  X,
+  Brain,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell , Legend} from "recharts";
 import { toast } from "sonner"; // Opcional: si usas sonner para notificaciones, si no, usa alert o console
@@ -89,6 +92,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [notificationCount, setNotificationCount] = useState(3);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // nuevo curso
   const [newCourse, setNewCourse] = useState({
@@ -300,120 +304,176 @@ const filteredUsers = users.filter((user) =>
       : "Administrador";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Mobile Header */}
-      <div className="lg:hidden bg-gradient-to-r from-gray-900 to-black text-white p-4 flex items-center justify-between sticky top-0 z-50">
-        <div>
-          <h2 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent">FocusLearn</h2>
-          <p className="text-gray-400 text-xs">Panel Administrador</p>
+      <div className="lg:hidden bg-[#1a1a1a] text-white p-4 flex items-center justify-between sticky top-0 z-50 shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center">
+            <Brain className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">FocusLearn</h2>
+            <p className="text-gray-500 text-xs">Panel Administrador</p>
+          </div>
         </div>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="text-white p-2 hover:bg-gray-800 rounded-lg transition-colors"
+          className="text-gray-400 hover:text-white p-2 hover:bg-gray-800 rounded-lg transition-colors"
         >
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
       
       <div className="flex">
-        {/* Sidebar */}
+        {/* Sidebar - Desktop y Mobile */}
         <aside className={`
           fixed lg:static inset-y-0 left-0 z-40
-          w-64 bg-gradient-to-b from-gray-900 to-black text-white p-6 shadow-xl
-          transform transition-transform duration-300 ease-in-out
+          ${isSidebarCollapsed ? 'w-20' : 'w-64'} 
+          min-h-screen flex flex-col
+          bg-[#1a1a1a] text-white shadow-2xl
+          ${isSidebarCollapsed ? 'px-3 py-6' : 'px-4 py-6'}
+          transform transition-all duration-300 ease-in-out
           lg:transform-none
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
-          <div className="mb-8 hidden lg:block">
-            <h2 className="bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent">FocusLearn</h2>
-            <p className="text-gray-400 text-sm mt-1">Panel Administrador</p>
+          <div className={`mb-6 hidden lg:flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} pb-4 border-b border-gray-800`}>
+            <div className={`${isSidebarCollapsed ? 'hidden' : 'flex items-center gap-3'}`}>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center">
+                <Brain className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">FocusLearn</h2>
+                <p className="text-gray-500 text-xs">Panel Administrador</p>
+              </div>
+            </div>
+            {!isSidebarCollapsed ? (
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-800"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-gray-800"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
-          <nav className="space-y-2">
+          <nav className="space-y-1">
             <button
               onClick={() => {
                 setCurrentView("overview");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "overview" 
-                  ? "bg-orange-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-blue-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Resumen"
             >
-              <Home className="w-5 h-5" />
-              <span>Resumen</span>
+              <Home className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "overview" ? "text-blue-500" : "group-hover:text-blue-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Resumen</span>
             </button>
 
             <button
               onClick={() => {
                 setCurrentView("users");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "users" 
-                  ? "bg-orange-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-blue-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Gestión de Usuarios"
             >
-              <Users className="w-5 h-5" />
-              <span>Gestión de Usuarios</span>
+              <Users className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "users" ? "text-blue-500" : "group-hover:text-blue-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Gestión de Usuarios</span>
             </button>
 
             <button
               onClick={() => {
                 setCurrentView("sessions");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "sessions" 
-                  ? "bg-orange-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-blue-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Sesiones Activas"
             >
-              <GraduationCap className="w-5 h-5" />
-              <span>Sesiones Activas</span>
+              <GraduationCap className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "sessions" ? "text-blue-500" : "group-hover:text-blue-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Sesiones Activas</span>
             </button>
 
             <button
               onClick={() => {
                 setCurrentView("stats");
                 setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "stats" 
-                  ? "bg-orange-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-blue-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Estadísticas Globales"
             >
-              <BarChart3 className="w-5 h-5" />
-              <span>Estadísticas Globales</span>
+              <BarChart3 className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "stats" ? "text-blue-500" : "group-hover:text-blue-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Estadísticas Globales</span>
             </button>
 
             <button
-              onClick={() => setCurrentView("config")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              onClick={() => {
+                setCurrentView("config");
+                setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
+              }}
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
                 currentView === "config" 
-                  ? "bg-orange-500 text-white" 
-                  : "text-gray-300 hover:bg-gray-800"
+                  ? "bg-gray-800 text-white border-l-4 border-blue-500" 
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
               }`}
+              title="Configuración"
             >
-              <Settings className="w-5 h-5" />
-              <span>Configuración</span>
+              <Settings className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "config" ? "text-blue-500" : "group-hover:text-blue-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Configuración</span>
             </button>
           </nav>
 
-          <div className="mt-auto pt-8">
-            <Separator className="mb-4 bg-gray-700" />
+          {/* Divider */}
+          <div className="my-4 border-t border-gray-800"></div>
+
+          <div className="mt-auto pt-4">
             <button 
               onClick={() => {
                 onLogout?.();
                 setIsMobileMenuOpen(false);
               }}
-              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-800 transition-colors"
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg text-gray-400 hover:bg-red-900 hover:bg-opacity-20 hover:text-red-400 transition-all duration-200 border-l-4 border-transparent hover:border-red-500 group`}
+              title="Cerrar Sesión"
             >
-              <LogOut className="w-5 h-5" />
-              <span>Cerrar Sesión</span>
+              <LogOut className="w-5 h-5 flex-shrink-0 group-hover:text-red-400" />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Cerrar Sesión</span>
             </button>
           </div>
         </aside>
@@ -421,7 +481,7 @@ const filteredUsers = users.filter((user) =>
         {/* Overlay para cerrar menú en móvil */}
         {isMobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            className="fixed inset-0 bg-black bg-opacity-70 z-30 lg:hidden backdrop-blur-sm"
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
@@ -451,7 +511,7 @@ const filteredUsers = users.filter((user) =>
                     <p className="text-sm text-gray-900">{displayName}</p>
                     <p className="text-xs text-gray-500">{displayRole}</p>
                   </div>
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white">
                     <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                 </div>
@@ -465,60 +525,60 @@ const filteredUsers = users.filter((user) =>
             {currentView === "overview" && (
               <div>
                 <div className="mb-6 sm:mb-8">
-                  <h2 className="text-2xl sm:text-3xl text-gray-900 mb-2">Resumen General</h2>
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">Resumen General</h2>
                   <p className="text-sm sm:text-base text-gray-600">Vista global del sistema</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-                  <Card className="border-l-4 border-l-orange-500">
+                  <Card className="border-l-4 border-l-blue-500 shadow-lg hover:shadow-xl transition-shadow">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm text-gray-600">Estudiantes Activos</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between">
-                        <span className="text-orange-600">{students.length}</span>
-                        <Users className="w-5 h-5 text-orange-600" />
+                        <span className="text-3xl font-bold text-blue-600">{students.length}</span>
+                        <Users className="w-8 h-8 text-blue-600" />
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">Total registrados</p>
+                      <p className="text-sm text-gray-500 mt-2">Total registrados</p>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-l-4 border-l-blue-500">
+                  <Card className="border-l-4 border-l-purple-500 shadow-lg hover:shadow-xl transition-shadow">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm text-gray-600">Docentes Registrados</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between">
-                        <span className="text-blue-600">{teachers.length}</span>
-                        <GraduationCap className="w-5 h-5 text-blue-600" />
+                        <span className="text-3xl font-bold text-purple-600">{teachers.length}</span>
+                        <GraduationCap className="w-8 h-8 text-purple-600" />
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">Activos</p>
+                      <p className="text-sm text-gray-500 mt-2">Activos</p>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-l-4 border-l-green-500">
+                  <Card className="border-l-4 border-l-green-500 shadow-lg hover:shadow-xl transition-shadow">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm text-gray-600">Atención Global</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between">
-                        <span className="text-green-600">{globalAverageAttention}%</span>
-                        <TrendingUp className="w-5 h-5 text-green-600" />
+                        <span className="text-3xl font-bold text-green-600">{globalAverageAttention}%</span>
+                        <TrendingUp className="w-8 h-8 text-green-600" />
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">Promedio general</p>
+                      <p className="text-sm text-gray-500 mt-2">Promedio general</p>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-l-4 border-l-purple-500">
+                  <Card className="border-l-4 border-l-cyan-500 shadow-lg hover:shadow-xl transition-shadow">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm text-gray-600">Sesiones Activas</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between">
-                        <span className="text-purple-600">{activeSessions.length}</span>
-                        <Activity className="w-5 h-5 text-purple-600" />
+                        <span className="text-3xl font-bold text-cyan-600">{activeSessions.length}</span>
+                        <Activity className="w-8 h-8 text-cyan-600" />
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">En este momento</p>
+                      <p className="text-sm text-gray-500 mt-2">En este momento</p>
                     </CardContent>
                   </Card>
                 </div>
@@ -627,10 +687,10 @@ const filteredUsers = users.filter((user) =>
               <div>
                 <div className="mb-8 flex items-center justify-between">
                   <div>
-                    <h2 className="text-gray-900 mb-2">Gestión de Usuarios</h2>
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">Gestión de Usuarios</h2>
                     <p className="text-gray-600">Administra estudiantes, docentes y administradores</p>
                   </div>
-                  <Button onClick={() => setShowAddDialog(true)}>
+                  <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700">
                     <UserPlus className="w-4 h-4 mr-2" />
                     Agregar Usuario
                   </Button>
@@ -681,10 +741,10 @@ const filteredUsers = users.filter((user) =>
                               <td className="px-6 py-4 text-sm text-gray-900">{user.id}</td>
                               <td className="px-6 py-4">
                                 <div className="flex items-center space-x-3">
-                                  <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white text-sm">
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold shadow-sm">
                                     {user.name.charAt(0)}
                                   </div>
-                                  <span className="text-sm text-gray-900">{user.name}</span>
+                                  <span className="text-sm font-medium text-gray-900">{user.name}</span>
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
@@ -731,22 +791,22 @@ const filteredUsers = users.filter((user) =>
             {currentView === "sessions" && (
               <div>
                 <div className="mb-6 sm:mb-8">
-                  <h2 className="text-2xl sm:text-3xl text-gray-900 mb-2">Clases y Sesiones Activas</h2>
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">Clases y Sesiones Activas</h2>
                   <p className="text-sm sm:text-base text-gray-600">Monitoreo en tiempo real</p>
                 </div>
 
                 <div className="grid gap-4 sm:gap-6">
                   {activeSessions.map(session => (
-                    <Card key={session.id} className="border-l-4 border-l-orange-500">
+                    <Card key={session.id} className="border-l-4 border-l-blue-500 shadow-lg">
                       <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <div className="flex items-center space-x-3 mb-3">
-                              <div className="w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center text-white">
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-md">
                                 <GraduationCap className="w-6 h-6" />
                               </div>
                               <div>
-                                <h3 className="text-gray-900">{session.className}</h3>
+                                <h3 className="font-semibold text-gray-900">{session.className}</h3>
                                 <p className="text-sm text-gray-600">Prof. {session.teacher}</p>
                               </div>
                               <Badge className="bg-green-100 text-green-600">
@@ -796,15 +856,15 @@ const filteredUsers = users.filter((user) =>
             {currentView === "stats" && (
               <div className="animate-in zoom-in-95 duration-500">
                 <div className="mb-8">
-                  <h2 className="text-gray-900 mb-2">Métricas del Sistema</h2>
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">Métricas del Sistema</h2>
                   <p className="text-gray-600">Salud de la plataforma y distribución de usuarios</p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Distribución de Roles Real */}
-                  <Card>
+                  <Card className="shadow-lg">
                     <CardHeader>
-                      <CardTitle>Composición de Usuarios</CardTitle>
+                      <CardTitle className="text-blue-700">Composición de Usuarios</CardTitle>
                       <CardDescription>Distribución actual de roles en la plataforma</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[300px]">
@@ -830,9 +890,9 @@ const filteredUsers = users.filter((user) =>
                   </Card>
 
                   {/* Carga del Sistema (Sesiones vs Cursos) */}
-                  <Card>
+                  <Card className="shadow-lg">
                     <CardHeader>
-                      <CardTitle>Carga Actual del Sistema</CardTitle>
+                      <CardTitle className="text-blue-700">Carga Actual del Sistema</CardTitle>
                       <CardDescription>Sesiones activas respecto al total de cursos</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[300px] flex flex-col justify-center items-center">
@@ -840,7 +900,7 @@ const filteredUsers = users.filter((user) =>
                         <svg className="w-full h-full transform -rotate-90">
                           <circle cx="80" cy="80" r="70" stroke="#e5e7eb" strokeWidth="10" fill="transparent" />
                           <circle 
-                            cx="80" cy="80" r="70" stroke="#f97316" strokeWidth="10" fill="transparent"
+                            cx="80" cy="80" r="70" stroke="#3b82f6" strokeWidth="10" fill="transparent"
                             strokeDasharray={440}
                             strokeDashoffset={440 - (440 * (activeSessions.length / (courses.length || 1)))}
                             className="transition-all duration-1000 ease-out"
@@ -863,14 +923,14 @@ const filteredUsers = users.filter((user) =>
             {currentView === "config" && (
               <div>
                 <div className="mb-8">
-                  <h2 className="text-gray-900 mb-2">Configuración del Sistema</h2>
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">Configuración del Sistema</h2>
                   <p className="text-gray-600">Ajustes generales y gestión de cursos</p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card>
+                  <Card className="shadow-lg">
                     <CardHeader>
-                      <CardTitle>Configuración General</CardTitle>
+                      <CardTitle className="text-blue-700">Configuración General</CardTitle>
                       <CardDescription>Personaliza el comportamiento del sistema</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -890,14 +950,14 @@ const filteredUsers = users.filter((user) =>
                         <Label>Umbral de Atención Alto (%)</Label>
                         <Input type="number" defaultValue="80" className="mt-2" />
                       </div>
-                      <Button>Guardar Cambios</Button>
+                      <Button className="bg-blue-600 hover:bg-blue-700">Guardar Cambios</Button>
                     </CardContent>
                   </Card>
 
                   {/* Gestión de cursos */}
-                  <Card>
+                  <Card className="shadow-lg">
                     <CardHeader>
-                      <CardTitle>Gestión de Cursos</CardTitle>
+                      <CardTitle className="text-blue-700">Gestión de Cursos</CardTitle>
                       <CardDescription>Crea y administra los cursos del sistema</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
