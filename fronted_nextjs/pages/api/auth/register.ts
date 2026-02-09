@@ -6,11 +6,17 @@ import { User } from "../../../models/User";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-this";
 
-const determineRole = (userId: string): string => {
-  if (userId.startsWith("EST")) return "Estudiante";
-  if (userId.startsWith("DOC")) return "Docente";
-  if (userId.startsWith("ADM")) return "Administrador";
-  return "No identificado";
+const generateUserId = async (): Promise<string> => {
+  let userId = "";
+  let exists = true;
+
+  while (exists) {
+    const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+    userId = `EST${suffix}`;
+    exists = !!(await User.findOne({ userId }));
+  }
+
+  return userId;
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -18,9 +24,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   await dbConnect();
 
-  const { fullName, email, password, userId } = req.body;
+  const { fullName, email, password } = req.body;
 
-  if (!fullName || !email || !password || !userId) {
+  if (!fullName || !email || !password) {
     return res.status(400).json({ detail: "Todos los campos son obligatorios" });
   }
 
@@ -29,15 +35,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ detail: "El correo electrónico ya está en uso" });
   }
 
-  const existingUserById = await User.findOne({ userId });
-  if (existingUserById) {
-    return res.status(400).json({ detail: "El ID de usuario ya existe" });
-  }
-
-  const role = determineRole(userId);
-  if (role === "No identificado") {
-      return res.status(400).json({ detail: "ID de usuario inválido. Debe comenzar con EST, DOC, o ADM." });
-  }
+  const userId = await generateUserId();
+  const role = "Estudiante";
 
   const passwordHash = await bcrypt.hash(password, 10);
 

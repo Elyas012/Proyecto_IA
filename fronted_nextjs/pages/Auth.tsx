@@ -5,7 +5,7 @@ import { Label } from "../components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock, Mail, User, Shield, GraduationCap, Users, ArrowLeft } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock, Mail, User, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import LoginButton from '@greatsumini/react-facebook-login';
@@ -28,7 +28,6 @@ export function Auth({ onLoginSuccess, onBack, initialTab = "login" }: AuthProps
   const [registerData, setRegisterData] = useState({
     fullName: "",
     email: "",
-    userId: "",
     password: "",
     confirmPassword: "",
   });
@@ -45,41 +44,6 @@ export function Auth({ onLoginSuccess, onBack, initialTab = "login" }: AuthProps
     return emailPattern.test(email);
   };
 
-  // Determinar rol basado en ID
-  const determineRole = (userId: string): string => {
-    if (userId.startsWith("EST")) return "Estudiante";
-    if (userId.startsWith("DOC")) return "Docente";
-    if (userId.startsWith("ADM")) return "Administrador";
-    return "No identificado";
-  };
-
-  // Obtener icono de rol
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case "Estudiante":
-        return <GraduationCap className="w-4 h-4" />;
-      case "Docente":
-        return <Users className="w-4 h-4" />;
-      case "Administrador":
-        return <Shield className="w-4 h-4" />;
-      default:
-        return null;
-    }
-  };
-
-  // Obtener color de rol
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case "Estudiante":
-        return "text-blue-600 bg-blue-50 border-blue-200";
-      case "Docente":
-        return "text-orange-600 bg-orange-50 border-orange-200";
-      case "Administrador":
-        return "text-purple-600 bg-purple-50 border-purple-200";
-      default:
-        return "text-gray-600 bg-gray-50 border-gray-200";
-    }
-  };
 
   // Calcular fortaleza de contraseña
   const getPasswordStrength = (password: string): { strength: number; label: string; color: string } => {
@@ -255,12 +219,6 @@ const handleRegister = async (e: React.FormEvent) => {
     newErrors.registerEmail = "Debe ingresar un correo electrónico válido";
   }
 
-  if (!registerData.userId) {
-    newErrors.userId = "El ID de usuario es obligatorio";
-  } else if (determineRole(registerData.userId) === "No identificado") {
-    newErrors.userId = "El ID debe comenzar con EST, DOC o ADM";
-  }
-
   if (!registerData.password) {
     newErrors.registerPassword = "La contraseña es obligatoria";
   } else if (registerData.password.length < 6) {
@@ -287,7 +245,6 @@ const handleRegister = async (e: React.FormEvent) => {
       fullName: registerData.fullName,
       email: registerData.email,
       password: registerData.password,
-      userId: registerData.userId,
     });
     const { token, user } = response.data;
     if (typeof window !== "undefined") {
@@ -295,9 +252,8 @@ const handleRegister = async (e: React.FormEvent) => {
       if (user) localStorage.setItem("user", JSON.stringify(user));
     }
 
-    const role = determineRole(registerData.userId);
-    setSuccessMessage(`Registro exitoso como ${role}. Redirigiendo al panel...`);
-    onLoginSuccess?.(role);
+    setSuccessMessage("Registro exitoso. Redirigiendo al panel...");
+    onLoginSuccess?.("Estudiante");
   } catch (err: any) {
     console.error("Register error", err);
     const errorData = err?.response?.data;
@@ -306,8 +262,6 @@ const handleRegister = async (e: React.FormEvent) => {
     if (errorData) {
       if (errorData.email) {
         errorMsg = "El correo electrónico ya está en uso.";
-      } else if (errorData.userId) {
-        errorMsg = "El ID de usuario ya existe.";
       } else if (typeof errorData.detail === 'string') {
         errorMsg = errorData.detail;
       }
@@ -318,7 +272,6 @@ const handleRegister = async (e: React.FormEvent) => {
   }
 };
 
-  const currentRole = determineRole(registerData.userId);
   const passwordStrength = getPasswordStrength(registerData.password);
 
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -404,33 +357,6 @@ const handleRegister = async (e: React.FormEvent) => {
                           <AlertCircle className="w-4 h-4" />
                           {errors.registerEmail}
                         </p>
-                      )}
-                    </div>
-
-                    {/* User ID */}
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        placeholder="ID de Usuario (EST001, DOC001, ADM001)"
-                        value={registerData.userId}
-                        onChange={(e) => setRegisterData({ ...registerData, userId: e.target.value })}
-                        className={`pl-4 pr-12 py-6 bg-gray-100 border-0 rounded-xl text-gray-700 placeholder-gray-400 focus:bg-gray-200 transition-colors ${
-                          errors.userId ? "ring-2 ring-red-500" : ""
-                        }`}
-                      />
-                      {getRoleIcon(currentRole) && (
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                          {getRoleIcon(currentRole)}
-                        </div>
-                      )}
-                      {errors.userId && (
-                        <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-4 h-4" />
-                          {errors.userId}
-                        </p>
-                      )}
-                      {registerData.userId && currentRole !== "No identificado" && (
-                        <p className="text-xs text-gray-600 mt-1">Rol: {currentRole}</p>
                       )}
                     </div>
 

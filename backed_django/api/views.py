@@ -231,12 +231,18 @@ class RegisterView(APIView):
             user.save()
 
         role = 'student'
-        if user_id.startswith('DOC'):
-            role = 'teacher'
-        elif user_id.startswith('ADM'):
-            role = 'admin'
 
-        UserProfile.objects.create(user=user, role=role, user_code=user_id)
+        user_code = user_id.strip() if user_id else ''
+        if not user_code:
+            user_code = f"EST{str(user.id).zfill(3)}"
+
+            # Ensure uniqueness if this code already exists.
+            counter = 1
+            while UserProfile.objects.filter(user_code=user_code).exists():
+                user_code = f"EST{str(user.id).zfill(3)}-{counter}"
+                counter += 1
+
+        UserProfile.objects.create(user=user, role=role, user_code=user_code)
         token, created = Token.objects.get_or_create(user=user)
         return Response({'token': token.key, 'user': {'id': user.id, 'username': user.username, 'email': user.email, 'role': role}}, status=status.HTTP_201_CREATED)
 
