@@ -1,8 +1,10 @@
+
+
+import os
 from google import genai
 
-# Tu API KEY real
-API_KEY = "AIzaSyB_66tL4aj5yJ5H4Yjbq6IeLkBfEYWWyRM" 
-
+# Lee la API KEY desde la variable de entorno
+API_KEY = os.environ.get("GOOGLE_API_KEY")
 client = genai.Client(api_key=API_KEY)
 
 print("--- LISTA DE MODELOS DISPONIBLES ---")
