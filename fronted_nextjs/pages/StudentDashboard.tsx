@@ -156,12 +156,21 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | 'semester'>('month');
   
+  const defaultWorkSeconds = 5 * 60;
+  const defaultPauseSeconds = 2 * 60;
+
   const [pomodoroSession, setPomodoroSession] = useState(1);
   const [pomodoroPhase, setPomodoroPhase] = useState<PomodoroPhase>("trabajo");
-  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(5 * 60);
+  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(defaultWorkSeconds);
   const [isPomodoroActive, setIsPomodoroActive] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [backendPomodoroStatus, setBackendPomodoroStatus] = useState<PomodoroBackendStatus | null>(null);
+
+  const getWorkDurationSeconds = () =>
+    (backendPomodoroStatus?.work_duration_minutes ?? defaultWorkSeconds / 60) * 60;
+  const getShortBreakSeconds = () =>
+    (backendPomodoroStatus?.pause_duration_minutes ?? defaultPauseSeconds / 60) * 60;
+  const getLongBreakSeconds = () => Math.max(getShortBreakSeconds() * 2, 5 * 60);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -344,11 +353,11 @@ useEffect(() => {
           if (nextSession % 4 === 0) {
             console.log('🎉 Descanso largo (5 min) después de 4 sesiones');
             setPomodoroPhase('descanso-largo');
-            setPomodoroTimeLeft(5 * 60); // 5 minutos
+            setPomodoroTimeLeft(getLongBreakSeconds());
           } else {
             console.log('☕ Descanso corto (2 min)');
             setPomodoroPhase('descanso-corto');
-            setPomodoroTimeLeft(2 * 60); // 2 minutos
+            setPomodoroTimeLeft(getShortBreakSeconds());
           }
           
           // Notificar al backend
@@ -359,7 +368,7 @@ useEffect(() => {
             session_number: nextSession
           }).catch(error => console.error('Error posting auto_pause event:', error));
           
-          return nextSession % 4 === 0 ? (5 * 60) : (2 * 60);
+          return nextSession % 4 === 0 ? getLongBreakSeconds() : getShortBreakSeconds();
         }
         // Solo decrementa si hay buena atención, sino mantiene el tiempo
         return shouldDecrement ? prev - 1 : prev;
@@ -374,7 +383,7 @@ useEffect(() => {
           
           setPomodoroSession(newSession); // ✅ Incrementar AQUÍ
           setPomodoroPhase('trabajo');
-          setPomodoroTimeLeft(5 * 60); // 5 minutos de trabajo
+          setPomodoroTimeLeft(getWorkDurationSeconds());
           
           // Notificar al backend
           api.post('/student/pomodoro-events/', { 
@@ -384,7 +393,7 @@ useEffect(() => {
             session_number: newSession
           }).catch(error => console.error('Error posting start event:', error));
           
-          return 5 * 60;
+          return getWorkDurationSeconds();
         }
         // Durante la pausa, siempre decrementa
         return prev - 1;
@@ -503,7 +512,8 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
         
         // Determinar tipo de descanso según la sesión actual
         const isLongBreak = pomodoroSession % 4 === 0;
-        const breakDuration = isLongBreak ? (5 * 60) : (2 * 60); // 5 min o 2 min
+        const breakDuration = isLongBreak ? getLongBreakSeconds() : getShortBreakSeconds();
+        const breakMinutes = Math.round(breakDuration / 60);
         
         setPomodoroPhase(isLongBreak ? 'descanso-largo' : 'descanso-corto');
         setPomodoroTimeLeft(breakDuration);
@@ -521,7 +531,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
           }).catch(() => {});
         }
         
-        toast(`🛑 Pausa automática: ${val}s de baja atención. ${isLongBreak ? 'Descanso largo (5 min)' : 'Descanso corto (2 min)'}`, {
+        toast(`🛑 Pausa automática: ${val}s de baja atención. ${isLongBreak ? `Descanso largo (${breakMinutes} min)` : `Descanso corto (${breakMinutes} min)`}`, {
           action: {
             label: 'OK',
             onClick: () => {},
@@ -633,7 +643,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
     setPomodoroSession(1);
     setPomodoroPhase('trabajo');
-    setPomodoroTimeLeft(5 * 60);
+    setPomodoroTimeLeft(getWorkDurationSeconds());
     setIsPomodoroActive(true);
 
     try {
