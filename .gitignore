@@ -17,7 +17,12 @@ build/
 *.pot
 db.sqlite3
 db.sqlite3-journal
-media/
+# Ignorar archivos en media pero mantener la estructura de carpetas
+media/*
+!media/.gitkeep
+!media/course_materials/
+media/course_materials/*
+!media/course_materials/.gitkeep
 staticfiles/
 
 # Environment variables

@@ -933,15 +933,30 @@ def download_course_material(request, material_id):
     """
     material = get_object_or_404(CourseMaterial, id=material_id, is_active=True)
 
-    file_path = material.file.path
-
-    if not os.path.exists(file_path):
+    # Verificar que el campo file no esté vacío
+    if not material.file:
         return Response(
-            {'detail': 'El archivo no se encontró en el servidor.'},
+            {'detail': 'Este material no tiene un archivo asociado.'},
             status=status.HTTP_404_NOT_FOUND
         )
 
     try:
+        # Usar material.file.path que ya incluye MEDIA_ROOT
+        file_path = material.file.path
+        
+        # Verificar que el archivo existe físicamente
+        if not os.path.exists(file_path):
+            return Response(
+                {
+                    'detail': 'El archivo no se encontró en el servidor.',
+                    'file_path_expected': file_path,
+                    'file_field': str(material.file),
+                    'help': 'El archivo puede haberse eliminado o no se subió correctamente.'
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Abrir y servir el archivo
         file_obj = open(file_path, 'rb')
         mime_type, _ = mimetypes.guess_type(file_path)
         mime_type = mime_type or 'application/pdf'
@@ -952,7 +967,10 @@ def download_course_material(request, material_id):
 
     except Exception as e:
         return Response(
-            {'detail': f'Error al servir el archivo: {str(e)}'},
+            {
+                'detail': f'Error al servir el archivo: {str(e)}',
+                'error_type': type(e).__name__
+            },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
