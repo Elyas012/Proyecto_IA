@@ -620,6 +620,36 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
     }
   };
 
+  const startNewStudySession = async () => {
+    if (!selectedCourse) {
+      toast.error('Selecciona un curso para iniciar el Pomodoro.');
+      return;
+    }
+
+    if (!isFeaturesExtracted) {
+      toast.error('Activa la camara y el analisis antes de iniciar una nueva sesion.');
+      return;
+    }
+
+    setPomodoroSession(1);
+    setPomodoroPhase('trabajo');
+    setPomodoroTimeLeft(25 * 60);
+    setIsPomodoroActive(true);
+
+    try {
+      await api.post('/student/pomodoro-events/', {
+        class_session_id: selectedCourse.id,
+        event_type: 'start',
+        reason: 'new_session',
+      });
+      toast.success('Nueva sesion iniciada.');
+    } catch (error) {
+      console.error('Error starting new session:', error);
+      toast.error('No se pudo iniciar la nueva sesion.');
+      setIsPomodoroActive(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50">
       <Toaster position="top-right" />
@@ -1087,6 +1117,16 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                           )}
                         </Button>
                       </div>
+
+                      {!isPomodoroActive && pomodoroTimeLeft === 0 && selectedCourse && (
+                        <Button
+                          onClick={startNewStudySession}
+                          className="mt-3 w-full text-sm sm:text-base"
+                          disabled={!isFeaturesExtracted}
+                        >
+                          Iniciar nueva sesion
+                        </Button>
+                      )}
 
                       {!selectedCourse && (
                         <Alert className="mt-4 border-cyan-300 bg-cyan-50">
