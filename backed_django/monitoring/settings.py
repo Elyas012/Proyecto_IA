@@ -204,3 +204,7 @@ if not DEBUG:
 
 # Definir AUTH_USER_MODEL al inicio del proyecto es la práctica recomendada
 # cuando se usa un modelo de usuario customizado.[web:23][web:31]
+
+
+print("GOOGLE_OAUTH_CLIENT_ID =", GOOGLE_OAUTH_CLIENT_ID)
+
