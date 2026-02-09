@@ -158,7 +158,7 @@ export function StudentDashboard({ onLogout }: StudentDashboardProps) {
   
   const [pomodoroSession, setPomodoroSession] = useState(1);
   const [pomodoroPhase, setPomodoroPhase] = useState<PomodoroPhase>("trabajo");
-  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
+  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(5 * 60);
   const [isPomodoroActive, setIsPomodoroActive] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [backendPomodoroStatus, setBackendPomodoroStatus] = useState<PomodoroBackendStatus | null>(null);
@@ -374,7 +374,7 @@ useEffect(() => {
           
           setPomodoroSession(newSession); // ✅ Incrementar AQUÍ
           setPomodoroPhase('trabajo');
-          setPomodoroTimeLeft(25 * 60); // 25 minutos de trabajo
+          setPomodoroTimeLeft(5 * 60); // 5 minutos de trabajo
           
           // Notificar al backend
           api.post('/student/pomodoro-events/', { 
@@ -384,7 +384,7 @@ useEffect(() => {
             session_number: newSession
           }).catch(error => console.error('Error posting start event:', error));
           
-          return 25 * 60;
+          return 5 * 60;
         }
         // Durante la pausa, siempre decrementa
         return prev - 1;
@@ -633,7 +633,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
     setPomodoroSession(1);
     setPomodoroPhase('trabajo');
-    setPomodoroTimeLeft(25 * 60);
+    setPomodoroTimeLeft(5 * 60);
     setIsPomodoroActive(true);
 
     try {
