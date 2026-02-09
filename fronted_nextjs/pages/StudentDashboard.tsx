@@ -622,6 +622,10 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
     try {
       if (newPomodoroActiveState) {
+        setConsecutiveLow(0);
+        setAutoPauseTriggered(false);
+        setShowLowAttentionAlert(false);
+        setShowMediumAttentionAlert(false);
         setPomodoroPhase('trabajo');
         setPomodoroTimeLeft(getWorkDurationSeconds());
         await api.post('/student/pomodoro-events/', { class_session_id: selectedCourse.id, event_type: 'start', reason: 'manual_start' });
@@ -649,6 +653,10 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
     }
 
     setPomodoroSession(1);
+    setConsecutiveLow(0);
+    setAutoPauseTriggered(false);
+    setShowLowAttentionAlert(false);
+    setShowMediumAttentionAlert(false);
     setPomodoroPhase('trabajo');
     setPomodoroTimeLeft(getWorkDurationSeconds());
     setIsPomodoroActive(true);
