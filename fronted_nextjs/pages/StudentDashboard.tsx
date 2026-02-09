@@ -332,6 +332,8 @@ useEffect(() => {
     setPomodoroTimeLeft(prev => {
       const currentStatus = backendPomodoroStatus.status;
       const currentAttention = attentionScoreRef.current;
+      // Solo decrementa si la atención es >= 50
+      const shouldDecrement = currentAttention >= 50;
       
       // Si backend está break_distracted, sincroniza con backend
       if (currentStatus === 'break_distracted') {
@@ -344,9 +346,6 @@ useEffect(() => {
         }
         return shouldDecrement ? prev - 1 : prev;
       }
-      
-      // Solo decrementa si la atención es >= 50
-      const shouldDecrement = currentAttention >= 50;
       
       // En fase de trabajo
       if (currentStatus === 'working') {
