@@ -54,6 +54,14 @@ type Course = {
   created_at: string;
 };
 
+type NotificationItem = {
+  id: number;
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+};
+
 interface User {
   id: number;              // ahora numérico
   userCode: string;
@@ -91,7 +99,30 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(3);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([
+    {
+      id: 1,
+      title: "Sesiones activas",
+      message: "Hay sesiones en vivo por revisar.",
+      time: "Ahora",
+      read: false,
+    },
+    {
+      id: 2,
+      title: "Usuarios nuevos",
+      message: "Se registraron nuevos usuarios hoy.",
+      time: "Hoy",
+      read: false,
+    },
+    {
+      id: 3,
+      title: "Cursos pendientes",
+      message: "Revisa cursos sin profesor asignado.",
+      time: "Hoy",
+      read: false,
+    },
+  ]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // nuevo curso
@@ -389,6 +420,12 @@ const filteredUsers = users.filter((user) =>
       ? "Estudiante"
       : "Administrador";
 
+  const unreadNotifications = notifications.filter((notification) => !notification.read).length;
+
+  const markAllNotificationsAsRead = () => {
+    setNotifications((prev) => prev.map((notification) => ({ ...notification, read: true })));
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Mobile Header */}
@@ -583,14 +620,63 @@ const filteredUsers = users.filter((user) =>
               </div>
               
               <div className="flex items-center space-x-2 sm:space-x-4">
-                <button className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                  <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-                  {notificationCount > 0 && (
-                    <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">
-                      {notificationCount}
-                    </span>
-                  )}
-                </button>
+                <Dialog open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
+                  <button
+                    className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    onClick={() => setIsNotificationsOpen(true)}
+                    aria-label="Ver notificaciones"
+                  >
+                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+                    {unreadNotifications > 0 && (
+                      <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">
+                        {unreadNotifications}
+                      </span>
+                    )}
+                  </button>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Notificaciones</DialogTitle>
+                      <DialogDescription>Actividad reciente del panel</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      {notifications.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-gray-200 p-4 text-center text-sm text-gray-500">
+                          No hay notificaciones nuevas.
+                        </div>
+                      ) : (
+                        notifications.map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`flex items-start justify-between gap-3 rounded-lg border p-3 ${
+                              notification.read ? "bg-gray-50 border-gray-100" : "bg-white border-gray-200"
+                            }`}
+                          >
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                              <p className="text-xs text-gray-600">{notification.message}</p>
+                            </div>
+                            <span className="text-[10px] text-gray-400">{notification.time}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <DialogFooter className="sm:justify-between">
+                      <Button
+                        variant="outline"
+                        onClick={() => setNotifications([])}
+                        disabled={notifications.length === 0}
+                      >
+                        Limpiar
+                      </Button>
+                      <Button
+                        onClick={markAllNotificationsAsRead}
+                        disabled={unreadNotifications === 0}
+                      >
+                        Marcar todo como leido
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
                 <div className="hidden sm:flex items-center space-x-3 pl-4 border-l">
                   <div className="text-right">
