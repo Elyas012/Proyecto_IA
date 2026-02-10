@@ -49,12 +49,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
                     onError={(e) => {
                         console.error('Error en ReactPlayer:', e);
                     }}
-                    config={{
-                        youtube: {
-                            showinfo: 1,
-                            modestbranding: 1
-                        }
-                    }}
                 />
             </div>
         );
