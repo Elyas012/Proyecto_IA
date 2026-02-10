@@ -92,6 +92,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
     const resolvedUrl = isExternalUrl ? normalizedUrl : resolveApiUrl(normalizedUrl);
 
     if (isExternalUrl && !isDirectVideoFile(normalizedUrl)) {
+        // Si es un enlace de YouTube, usar iframe como fallback si ReactPlayer falla
+        const isYouTube = /youtube\.com|youtu\.be/.test(normalizedUrl);
+        const getYouTubeEmbedUrl = (url: string) => {
+            try {
+                const parsed = new URL(url);
+                let videoId = '';
+                if (parsed.hostname.includes('youtu.be')) {
+                    videoId = parsed.pathname.replace('/', '');
+                } else if (parsed.searchParams.has('v')) {
+                    videoId = parsed.searchParams.get('v') || '';
+                } else if (parsed.pathname.startsWith('/embed/')) {
+                    videoId = parsed.pathname.split('/')[2];
+                } else if (parsed.pathname.startsWith('/shorts/')) {
+                    videoId = parsed.pathname.split('/')[2];
+                }
+                return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+            } catch {
+                return url;
+            }
+        };
         return (
             <div className="relative bg-black aspect-video rounded-lg overflow-hidden">
                 {!ready && (
@@ -107,13 +127,24 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
                     width="100%"
                     height="100%"
                     onReady={() => {
-                        console.log('ReactPlayer listo');
                         setReady(true);
                     }}
                     onError={(e: unknown) => {
                         console.error('Error en ReactPlayer:', e);
+                        setReady(false);
                     }}
                 />
+                {/* Fallback a iframe nativo si es YouTube y ReactPlayer no está listo */}
+                {isYouTube && !ready && (
+                    <iframe
+                        src={getYouTubeEmbedUrl(normalizedUrl)}
+                        title="YouTube video player"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                    />
+                )}
             </div>
         );
     }
