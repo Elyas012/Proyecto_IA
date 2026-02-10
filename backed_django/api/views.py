@@ -821,6 +821,20 @@ def admin_courses(request):
         return Response(CourseSerializer(course).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def admin_course_detail(request, course_id):
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+        return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        course = Course.objects.get(id=course_id)
+    except Course.DoesNotExist:
+        return Response({'detail': 'Course not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    course.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def teacher_class_sessions(request):

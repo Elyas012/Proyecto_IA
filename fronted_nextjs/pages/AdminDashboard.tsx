@@ -196,6 +196,29 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     }
   };
 
+  const handleDeleteCourse = async (courseId: number) => {
+    const confirmed = typeof window !== "undefined" && window.confirm("¿Eliminar este curso?");
+    if (!confirmed) return;
+    try {
+      await api.delete(`/admin/courses/${courseId}/`);
+      setCourses((prev) => prev.filter((course) => course.id !== courseId));
+      setSelectedTeacherByCourse((prev) => {
+        const updated = { ...prev };
+        delete updated[courseId];
+        return updated;
+      });
+      setSelectedStudentByCourse((prev) => {
+        const updated = { ...prev };
+        delete updated[courseId];
+        return updated;
+      });
+      toast.success("Curso eliminado correctamente");
+    } catch (e) {
+      console.error("Error deleting course", e);
+      toast.error("Error al eliminar curso");
+    }
+  };
+
   // asignar profesor
   const handleAssignTeacher = async (courseId: number) => {
     const teacherId = selectedTeacherByCourse[courseId];
@@ -1016,11 +1039,19 @@ const filteredUsers = users.filter((user) =>
                           <div className="space-y-4">
                             {courses.map((c) => (
                               <div key={c.id} className="border border-gray-200 rounded-lg p-4 flex flex-col gap-3">
-                                <div>
-                                  <p className="text-sm font-semibold text-gray-900">
-                                    {c.code} — {c.name}
-                                  </p>
-                                  <p className="text-xs text-gray-500">{c.description}</p>
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-900">
+                                      {c.code} — {c.name}
+                                    </p>
+                                    <p className="text-xs text-gray-500">{c.description}</p>
+                                  </div>
+                                  <button
+                                    className="inline-flex items-center rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
+                                    onClick={() => handleDeleteCourse(c.id)}
+                                  >
+                                    Eliminar
+                                  </button>
                                 </div>
 
                                 {/* Asignar profesor */}
