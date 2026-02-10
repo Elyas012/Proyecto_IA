@@ -110,6 +110,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCourseDetailsDialog, setShowCourseDetailsDialog] = useState(false);
   const [selectedCourseDetails, setSelectedCourseDetails] = useState<Course | null>(null);
+  const [showSessionDetailsDialog, setShowSessionDetailsDialog] = useState(false);
+  const [selectedSessionDetails, setSelectedSessionDetails] = useState<ActiveSession | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([
     {
@@ -480,6 +482,11 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     setSelectedCourseDetails(course);
     setShowCourseDetailsDialog(true);
     await loadEnrolledStudents(course.id);
+  };
+
+  const handleOpenSessionDetails = (session: ActiveSession) => {
+    setSelectedSessionDetails(session);
+    setShowSessionDetailsDialog(true);
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -1099,7 +1106,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                             </div>
                           </div>
                           
-                          <Button variant="outline">
+                          <Button variant="outline" onClick={() => handleOpenSessionDetails(session)}>
                             Ver detalles
                           </Button>
                         </div>
@@ -1660,6 +1667,46 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCourseDetailsDialog(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSessionDetailsDialog} onOpenChange={setShowSessionDetailsDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Detalles de la sesion</DialogTitle>
+            <DialogDescription>Resumen de la clase activa</DialogDescription>
+          </DialogHeader>
+          {selectedSessionDetails ? (
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{selectedSessionDetails.className}</p>
+                <p className="text-xs text-gray-500">Prof. {selectedSessionDetails.teacher}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs text-gray-600">
+                <div className="rounded border border-gray-200 p-2">
+                  <p className="font-semibold text-gray-700">Estudiantes</p>
+                  <p className="text-gray-900">{selectedSessionDetails.studentsCount}</p>
+                </div>
+                <div className="rounded border border-gray-200 p-2">
+                  <p className="font-semibold text-gray-700">Inicio</p>
+                  <p className="text-gray-900">{selectedSessionDetails.startTime}</p>
+                </div>
+                <div className="rounded border border-gray-200 p-2 col-span-2">
+                  <p className="font-semibold text-gray-700">Atencion promedio</p>
+                  <p className={getAttentionColor(selectedSessionDetails.averageAttention)}>
+                    {selectedSessionDetails.averageAttention}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">Selecciona una sesion para ver detalles.</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSessionDetailsDialog(false)}>
               Cerrar
             </Button>
           </DialogFooter>
