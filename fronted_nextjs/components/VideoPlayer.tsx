@@ -51,10 +51,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
                     }}
                     config={{
                         youtube: {
-                            playerVars: { 
-                                showinfo: 1,
-                                modestbranding: 1
-                            }
+                            showinfo: 1,
+                            modestbranding: 1
                         }
                     }}
                 />
