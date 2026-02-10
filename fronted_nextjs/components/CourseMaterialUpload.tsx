@@ -24,6 +24,34 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file'); // Nuevo: modo de subida
   const [videoUrl, setVideoUrl] = useState(''); // Nuevo: URL del video
 
+  const normalizeVideoUrl = (input: string): string => {
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+    try {
+      const parsed = new URL(withProtocol);
+      const host = parsed.hostname.replace(/^www\./, '');
+
+      if (host === 'youtu.be') {
+        const id = parsed.pathname.replace('/', '');
+        if (id) return `https://www.youtube.com/watch?v=${id}`;
+      }
+
+      if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+        if (parsed.pathname.startsWith('/shorts/')) {
+          const id = parsed.pathname.split('/')[2];
+          if (id) return `https://www.youtube.com/watch?v=${id}`;
+        }
+      }
+
+      return withProtocol;
+    } catch {
+      return '';
+    }
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
@@ -52,6 +80,13 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
       return;
     }
 
+    const normalizedVideoUrl = uploadMode === 'url' ? normalizeVideoUrl(videoUrl) : '';
+
+    if (uploadMode === 'url' && !normalizedVideoUrl) {
+      toast.error('La URL del video no es válida.');
+      return;
+    }
+
     if (!token) {
         toast.error('No estás autenticado.');
         return;
@@ -66,7 +101,7 @@ export default function CourseMaterialUpload({ courseId, token, onUploadSuccess 
       formData.append('file', file);
       formData.append('file_type', fileType);
     } else if (uploadMode === 'url') {
-      formData.append('video_url', videoUrl);
+      formData.append('video_url', normalizedVideoUrl);
       formData.append('file_type', 'link'); // Tipo especial para videos con URL
     }
 

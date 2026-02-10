@@ -7,6 +7,34 @@ import type { ComponentType } from 'react';
 // Importar ReactPlayer dinámicamente para evitar problemas con SSR
 const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as ComponentType<any>;
 
+const normalizeVideoUrl = (input: string): string => {
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+    try {
+        const parsed = new URL(withProtocol);
+        const host = parsed.hostname.replace(/^www\./, '');
+
+        if (host === 'youtu.be') {
+            const id = parsed.pathname.replace('/', '');
+            if (id) return `https://www.youtube.com/watch?v=${id}`;
+        }
+
+        if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+            if (parsed.pathname.startsWith('/shorts/')) {
+                const id = parsed.pathname.split('/')[2];
+                if (id) return `https://www.youtube.com/watch?v=${id}`;
+            }
+        }
+
+        return withProtocol;
+    } catch {
+        return '';
+    }
+};
+
 interface VideoPlayerProps {
     material: {
         id: number;
@@ -29,6 +57,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
 
     // Si hay video_url, usarlo (YouTube, Vimeo, etc.)
     if (material.video_url) {
+        const videoUrl = normalizeVideoUrl(material.video_url);
+
+        if (!videoUrl) {
+            return (
+                <div className="flex flex-col items-center justify-center h-full text-center p-4 bg-gray-100 rounded-md aspect-video">
+                    <PlayCircle className="h-12 w-12 text-gray-400 mb-4" />
+                    <p className="text-gray-600">URL de video no valida</p>
+                </div>
+            );
+        }
+
         return (
             <div className="relative bg-black aspect-video rounded-lg overflow-hidden">
                 {!ready && (
@@ -37,7 +76,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
                     </div>
                 )}
                 <ReactPlayer
-                    url={material.video_url}
+                    url={videoUrl}
                     playing={false}
                     volume={0.8}
                     controls={true}
