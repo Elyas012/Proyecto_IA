@@ -1096,6 +1096,62 @@ def admin_enroll_student(request):
         status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
     )
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_course_students(request, course_id):
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+        return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
+
+    enrollments = StudentCourse.objects.filter(course_id=course_id).values_list('student_id', flat=True)
+    return Response({'student_ids': list(enrollments)})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_enroll_students_bulk(request):
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+        return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
+
+    course_id = request.data.get('course_id')
+    student_ids = request.data.get('student_ids')
+
+    if not course_id or not isinstance(student_ids, list):
+        return Response({'detail': 'course_id and student_ids[] are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        course = Course.objects.get(id=course_id)
+    except Course.DoesNotExist:
+        return Response({'detail': 'Course not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    enrolled_ids = []
+    already_enrolled_ids = []
+    invalid_ids = []
+
+    for student_id in student_ids:
+        try:
+            student = User.objects.get(id=student_id)
+        except User.DoesNotExist:
+            invalid_ids.append(student_id)
+            continue
+
+        if not hasattr(student, 'profile') or student.profile.role != 'student':
+            invalid_ids.append(student_id)
+            continue
+
+        enrollment, created = StudentCourse.objects.get_or_create(
+            student=student,
+            course=course,
+        )
+        if created:
+            enrolled_ids.append(student_id)
+        else:
+            already_enrolled_ids.append(student_id)
+
+    return Response({
+        'enrolled_ids': enrolled_ids,
+        'already_enrolled_ids': already_enrolled_ids,
+        'invalid_ids': invalid_ids,
+    })
+
 # ==========================================
 # QUIZ & AI GEN (CORREGIDO PARA NUEVA LIBRERIA)
 # ==========================================

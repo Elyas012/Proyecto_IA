@@ -108,6 +108,15 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [selectedStudentByCourse, setSelectedStudentByCourse] = useState<
     Record<number, string | number>
   >({});
+  const [selectedStudentsByCourse, setSelectedStudentsByCourse] = useState<
+    Record<number, number[]>
+  >({});
+  const [enrolledStudentIdsByCourse, setEnrolledStudentIdsByCourse] = useState<
+    Record<number, number[]>
+  >({});
+  const [enrollmentLoadingByCourse, setEnrollmentLoadingByCourse] = useState<
+    Record<number, boolean>
+  >({});
 
   console.log("USERS ADMIN:", users);
 
@@ -146,6 +155,14 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    courses.forEach((course) => {
+      if (!enrolledStudentIdsByCourse[course.id]) {
+        loadEnrolledStudents(course.id);
+      }
+    });
+  }, [courses]);
 
   useEffect(() => {
     const loadCurrentUser = async () => {
@@ -245,11 +262,57 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         course_id: courseId,
         student_id: studentId,
       });
+      setEnrolledStudentIdsByCourse((prev) => ({
+        ...prev,
+        [courseId]: Array.from(new Set([...(prev[courseId] ?? []), Number(studentId)])),
+      }));
       toast.success("Estudiante matriculado correctamente");
       setSelectedStudentByCourse((prev) => ({ ...prev, [courseId]: "" }));
     } catch (e) {
       console.error(e);
       toast.error("Error al matricular estudiante");
+    }
+  };
+
+  const loadEnrolledStudents = async (courseId: number) => {
+    if (enrolledStudentIdsByCourse[courseId] || enrollmentLoadingByCourse[courseId]) return;
+    setEnrollmentLoadingByCourse((prev) => ({ ...prev, [courseId]: true }));
+    try {
+      const resp = await api.get(`/admin/courses/${courseId}/students/`);
+      setEnrolledStudentIdsByCourse((prev) => ({
+        ...prev,
+        [courseId]: resp.data?.student_ids ?? [],
+      }));
+    } catch (e) {
+      console.error("Error loading enrolled students", e);
+      toast.error("No se pudo cargar los matriculados");
+    } finally {
+      setEnrollmentLoadingByCourse((prev) => ({ ...prev, [courseId]: false }));
+    }
+  };
+
+  const handleBulkEnrollStudents = async (courseId: number) => {
+    const selected = selectedStudentsByCourse[courseId] ?? [];
+    if (selected.length === 0) {
+      toast.error("Selecciona estudiantes para matricular");
+      return;
+    }
+    try {
+      const resp = await api.post("/admin/enroll-students-bulk/", {
+        course_id: courseId,
+        student_ids: selected,
+      });
+      const enrolledIds = resp.data?.enrolled_ids ?? [];
+      const alreadyIds = resp.data?.already_enrolled_ids ?? [];
+      setEnrolledStudentIdsByCourse((prev) => ({
+        ...prev,
+        [courseId]: Array.from(new Set([...(prev[courseId] ?? []), ...enrolledIds, ...alreadyIds])),
+      }));
+      setSelectedStudentsByCourse((prev) => ({ ...prev, [courseId]: [] }));
+      toast.success(`Matriculados: ${enrolledIds.length}. Ya inscritos: ${alreadyIds.length}.`);
+    } catch (e) {
+      console.error("Error bulk enrolling students", e);
+      toast.error("Error al matricular en masa");
     }
   };
 
@@ -1110,6 +1173,68 @@ const filteredUsers = users.filter((user) =>
                                   >
                                     Matricular
                                   </button>
+                                </div>
+
+                                {/* Matricular en masa */}
+                                <div className="rounded-md border border-gray-200 p-3 bg-gray-50">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-gray-700">Matricular en masa</span>
+                                    <button
+                                      className="text-xs text-blue-600 hover:underline"
+                                      onClick={() => loadEnrolledStudents(c.id)}
+                                    >
+                                      {enrollmentLoadingByCourse[c.id] ? "Cargando..." : "Actualizar inscritos"}
+                                    </button>
+                                  </div>
+                                  <div className="mt-2 max-h-40 overflow-auto space-y-1">
+                                    {students.map((s) => {
+                                      const enrolledIds = enrolledStudentIdsByCourse[c.id] ?? [];
+                                      const isEnrolled = enrolledIds.includes(s.id);
+                                      const selectedIds = selectedStudentsByCourse[c.id] ?? [];
+                                      const isChecked = selectedIds.includes(s.id);
+                                      return (
+                                        <label
+                                          key={s.id}
+                                          className={`flex items-center justify-between gap-2 rounded px-2 py-1 text-xs ${isEnrolled ? 'opacity-50' : ''}`}
+                                        >
+                                          <span className="flex items-center gap-2">
+                                            <input
+                                              type="checkbox"
+                                              checked={isChecked}
+                                              disabled={isEnrolled}
+                                              onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setSelectedStudentsByCourse((prev) => {
+                                                  const current = prev[c.id] ?? [];
+                                                  const next = checked
+                                                    ? Array.from(new Set([...current, s.id]))
+                                                    : current.filter((id) => id !== s.id);
+                                                  return { ...prev, [c.id]: next };
+                                                });
+                                              }}
+                                            />
+                                            <span>
+                                              {s.name} ({s.email})
+                                            </span>
+                                          </span>
+                                          {isEnrolled && (
+                                            <span className="rounded bg-gray-200 px-2 py-0.5 text-[10px] text-gray-600">
+                                              Ya matriculado
+                                            </span>
+                                          )}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="mt-2 flex justify-end">
+                                    <button
+                                      className="inline-flex items-center rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                                      disabled={(selectedStudentsByCourse[c.id] ?? []).length === 0}
+                                      onClick={() => handleBulkEnrollStudents(c.id)}
+                                    >
+                                      Matricular seleccionados
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             ))}
