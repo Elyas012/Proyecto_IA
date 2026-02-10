@@ -639,7 +639,41 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
 
   const handleSelectCourse = (course: Course) => {
     setSelectedCourse(course);
+    setIsPomodoroActive(false);
+    setPomodoroSession(1);
+    setPomodoroPhase('trabajo');
+    setPomodoroTimeLeft(getWorkDurationSeconds());
+    setBackendPomodoroStatus(null);
+    setConsecutiveLow(0);
+    setAutoPauseTriggered(false);
+    setShowLowAttentionAlert(false);
+    setShowMediumAttentionAlert(false);
     setCurrentView("classes");
+  };
+
+  const handleLogoutClick = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+    setIsAnalyzing(false);
+    setIsFeaturesExtracted(false);
+    setExtractionProgress(0);
+    setIsPomodoroActive(false);
+    setPomodoroSession(1);
+    setPomodoroPhase('trabajo');
+    setPomodoroTimeLeft(getWorkDurationSeconds());
+    setBackendPomodoroStatus(null);
+    setSelectedCourse(null);
+    setConsecutiveLow(0);
+    setAutoPauseTriggered(false);
+    setShowLowAttentionAlert(false);
+    setShowMediumAttentionAlert(false);
+    onLogout?.();
   };
 
   const togglePomodoro = async () => {
@@ -873,7 +907,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
           <div className="mt-auto pt-4">
             <button 
               onClick={() => {
-                onLogout?.();
+                handleLogoutClick();
                 setIsMobileMenuOpen(false);
               }}
               className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg text-gray-400 hover:bg-red-900 hover:bg-opacity-20 hover:text-red-400 transition-all duration-200 border-l-4 border-transparent hover:border-red-500 group`}
