@@ -1247,20 +1247,6 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                 </motion.div>
               )}
 
-              {/* WebcamCapture Component - Siempre activo cuando la cámara está encendida */}
-              <div className="hidden">
-                {isCameraActive && (
-                  <WebcamCapture
-                    videoRef={videoRef}
-                    isAnalyzing={isAnalyzing}
-                    isCameraActive={isCameraActive}
-                    onFeaturesExtracted={handleFeaturesExtracted}
-                    onAttentionUpdate={handleAttentionUpdate}
-                    classSessionId={selectedCourse?.id ?? null}
-                  />
-                )}
-              </div>
-              
               <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-800 mb-2">Sala de Clase Virtual</h1>
                 <p className="text-gray-500">
@@ -1356,6 +1342,17 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                           muted
                           playsInline
                         />
+
+                        {isCameraActive && (
+                          <WebcamCapture
+                            videoRef={videoRef}
+                            isAnalyzing={isAnalyzing}
+                            isCameraActive={isCameraActive}
+                            onFeaturesExtracted={handleFeaturesExtracted}
+                            onAttentionUpdate={handleAttentionUpdate}
+                            classSessionId={selectedCourse?.id ?? null}
+                          />
+                        )}
                         
                         {!isCameraActive && (
                           <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
