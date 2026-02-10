@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import type { ComponentType } from 'react';
 
 // Importar ReactPlayer dinámicamente para evitar problemas con SSR
-const ReactPlayer = dynamic(() => import('react-player/lazy'), { ssr: false }) as ComponentType<any>;
+const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as ComponentType<any>;
 
 interface VideoPlayerProps {
     material: {
