@@ -50,6 +50,32 @@ interface CourseMaterialsProps {
     onVideoSelect?: (material: any) => void;
 }
 
+const isExternalVideoUrl = (url?: string): boolean => {
+    if (!url) return false;
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    return /(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|soundcloud\.com)/i.test(normalized);
+};
+
+const isDirectVideoFile = (url?: string): boolean => {
+    if (!url) return false;
+    return /\.(mp4|webm|ogg|wmv)(\?|#|$)/i.test(url);
+};
+
+const isPdfFile = (url?: string): boolean => {
+    if (!url) return false;
+    return /\.pdf(\?|#|$)/i.test(url);
+};
+
+const isVideoMaterial = (material: CourseMaterial): boolean => {
+    return material.material_type === 'video' || !!material.video_url || isExternalVideoUrl(material.file_url) || isDirectVideoFile(material.file_url);
+};
+
+const isPdfMaterial = (material: CourseMaterial): boolean => {
+    return material.material_type === 'pdf' || isPdfFile(material.file_url);
+};
+
 const CourseMaterials = ({ 
     courseId, 
     isTeacherView = false, 
@@ -120,7 +146,7 @@ const CourseMaterials = ({
         setIsViewerOpen(true);
         
         // ✅ NUEVO: Si es un video y hay callback, notificar al padre (StudentDashboard)
-        if (material.material_type === 'video' && onVideoSelect) {
+        if (isVideoMaterial(material) && onVideoSelect) {
             console.log('📹 Notificando selección de video al padre');
             onVideoSelect(material);
         }
@@ -218,13 +244,14 @@ const CourseMaterials = ({
     if (loading) return <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>;
     if (error) return <p className="text-red-500">{error}</p>;
 
-    const viewerDialogClass = selectedMaterial?.material_type === 'video' 
+    const isSelectedVideo = selectedMaterial ? isVideoMaterial(selectedMaterial) : false;
+    const viewerDialogClass = isSelectedVideo 
         ? "max-w-6xl h-[70vh] w-[800px]" 
         : "max-w-4xl h-[95vh]";
 
     // Agrupar materiales por tipo
-    const videoMaterials = materials.filter(m => m.material_type === 'video');
-    const pdfMaterials = materials.filter(m => m.material_type === 'pdf');
+    const videoMaterials = materials.filter(isVideoMaterial);
+    const pdfMaterials = materials.filter(m => !isVideoMaterial(m) && isPdfMaterial(m));
     const quizMaterials = materials.filter(m => m.has_quiz);
 
     // Determinar qué materiales mostrar según la sección activa
@@ -375,7 +402,7 @@ const CourseMaterials = ({
                     </DialogHeader>
                     <div className="w-full h-full overflow-hidden rounded-md bg-black/5">
                         {selectedMaterial && (
-                            selectedMaterial.material_type === 'pdf' ? (
+                            !isSelectedVideo ? (
                                 <div className="h-full w-full min-h-[500px]">
                                     <PdfViewer material={selectedMaterial} />
                                 </div>

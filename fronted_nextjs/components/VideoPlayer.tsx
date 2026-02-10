@@ -11,7 +11,16 @@ const normalizeVideoUrl = (input: string): string => {
     const trimmed = input.trim();
     if (!trimmed) return '';
 
-    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    if (trimmed.startsWith('/')) {
+        return trimmed;
+    }
+
+    const candidate = trimmed.startsWith('media/') ? `/${trimmed}` : trimmed;
+    if (candidate.startsWith('/')) {
+        return candidate;
+    }
+
+    const withProtocol = /^https?:\/\//i.test(candidate) ? candidate : `https://${candidate}`;
 
     try {
         const parsed = new URL(withProtocol);
@@ -35,6 +44,10 @@ const normalizeVideoUrl = (input: string): string => {
     }
 };
 
+const isDirectVideoFile = (url: string): boolean => {
+    return /\.(mp4|webm|ogg)(\?|#|$)/i.test(url);
+};
+
 interface VideoPlayerProps {
     material: {
         id: number;
@@ -45,7 +58,6 @@ interface VideoPlayerProps {
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
-    const [playing, setPlaying] = useState(false);
     const [ready, setReady] = useState(false);
 
     console.log('VideoPlayer montado:', { 
@@ -55,19 +67,31 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
         file_url: material.file_url 
     });
 
-    // Si hay video_url, usarlo (YouTube, Vimeo, etc.)
-    if (material.video_url) {
-        const videoUrl = normalizeVideoUrl(material.video_url);
+    const rawUrl = material.video_url || material.file_url || '';
+    const normalizedUrl = normalizeVideoUrl(rawUrl);
 
-        if (!videoUrl) {
-            return (
-                <div className="flex flex-col items-center justify-center h-full text-center p-4 bg-gray-100 rounded-md aspect-video">
-                    <PlayCircle className="h-12 w-12 text-gray-400 mb-4" />
-                    <p className="text-gray-600">URL de video no valida</p>
-                </div>
-            );
-        }
+    if (rawUrl && !normalizedUrl) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-4 bg-gray-100 rounded-md aspect-video">
+                <PlayCircle className="h-12 w-12 text-gray-400 mb-4" />
+                <p className="text-gray-600">URL de video no valida</p>
+            </div>
+        );
+    }
 
+    if (!rawUrl) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-4 bg-gray-100 rounded-md aspect-video">
+                <Video className="h-12 w-12 text-gray-400 mb-4" />
+                <p className="text-gray-600">No hay video disponible</p>
+            </div>
+        );
+    }
+
+    const isExternalUrl = /^https?:\/\//i.test(normalizedUrl);
+    const resolvedUrl = isExternalUrl ? normalizedUrl : resolveApiUrl(normalizedUrl);
+
+    if (isExternalUrl && !isDirectVideoFile(normalizedUrl)) {
         return (
             <div className="relative bg-black aspect-video rounded-lg overflow-hidden">
                 {!ready && (
@@ -76,7 +100,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
                     </div>
                 )}
                 <ReactPlayer
-                    url={videoUrl}
+                    url={normalizedUrl}
                     playing={false}
                     volume={0.8}
                     controls={true}
@@ -94,18 +118,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
         );
     }
 
-    // Si no hay video_url, usar el archivo subido (comportamiento original)
-    if (!material.file_url) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-4 bg-gray-100 rounded-md aspect-video">
-                <Video className="h-12 w-12 text-gray-400 mb-4" />
-                <p className="text-gray-600">No hay video disponible</p>
-            </div>
-        );
-    }
-
-    const isWmv = material.file_url.toLowerCase().endsWith('.wmv');
-    const fileUrl = resolveApiUrl(material.file_url);
+    const isWmv = resolvedUrl.toLowerCase().endsWith('.wmv');
 
     return (
         <>
@@ -119,7 +132,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
                         o puedes descargarlo para verlo con un reproductor externo.
                     </p>
                     <a
-                        href={fileUrl}
+                        href={resolvedUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline flex items-center"
@@ -129,7 +142,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
                     </a>
                 </div>
             ) : (
-                <video controls src={fileUrl} className="w-full h-auto" />
+                <video controls src={resolvedUrl} className="w-full h-auto" />
             )}
         </>
     );
