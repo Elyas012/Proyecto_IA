@@ -5,11 +5,19 @@ interface PdfViewerProps {
     material: {
         id: number;
         title: string;
-        file_url: string;
+        file_url?: string;
     };
 }
 
 const PdfViewer: React.FC<PdfViewerProps> = ({ material }) => {
+    if (!material.file_url) {
+        return (
+            <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
+                Archivo no disponible.
+            </div>
+        );
+    }
+
     const fileUrl = resolveApiUrl(material.file_url);
     return (
         <>
