@@ -1216,7 +1216,7 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                       <Badge className={`text-xs ${
                         pomodoroPhase === 'trabajo' 
                           ? 'bg-cyan-500 text-white' 
-                          : pomodoroPhase === 'descanso_corto' || pomodoroPhase === 'descanso_largo'
+                          : pomodoroPhase === 'descanso-corto' || pomodoroPhase === 'descanso-largo'
                           ? 'bg-green-500 text-white'
                           : 'bg-purple-500 text-white'
                       }`}>
