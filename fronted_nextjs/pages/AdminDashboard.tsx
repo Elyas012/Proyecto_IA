@@ -54,6 +54,15 @@ type Course = {
   created_at: string;
 };
 
+type UserFormState = {
+  name: string;
+  email: string;
+  userCode?: string;
+  role: "student" | "teacher" | "admin";
+  password?: string;
+  status?: "active" | "inactive";
+};
+
 type NotificationItem = {
   id: number;
   title: string;
@@ -99,6 +108,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCourseDetailsDialog, setShowCourseDetailsDialog] = useState(false);
+  const [selectedCourseDetails, setSelectedCourseDetails] = useState<Course | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([
     {
@@ -124,6 +135,20 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     },
   ]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [newUserForm, setNewUserForm] = useState<UserFormState>({
+    name: "",
+    email: "",
+    userCode: "",
+    role: "student",
+    password: "",
+  });
+  const [editUserForm, setEditUserForm] = useState<UserFormState>({
+    name: "",
+    email: "",
+    role: "student",
+    status: "active",
+  });
 
   // nuevo curso
   const [newCourse, setNewCourse] = useState({
@@ -368,23 +393,93 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   const globalAverageAttention = 82;
 
-const filteredUsers = users.filter((user) =>
-  user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-  user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-  String(user.id).includes(searchQuery) || // usar id numérico como string
-  user.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-  user.userCode.toLowerCase().includes(searchQuery.toLowerCase()) // opcional
-);
+  const filteredUsers = users.filter((user) => {
+    const matchesSearch =
+      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(user.id).includes(searchQuery) ||
+      user.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.userCode.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesRole = roleFilter === "all" || user.role.toLowerCase() === roleFilter;
+    return matchesSearch && matchesRole;
+  });
 
 
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
+    setEditUserForm({
+      name: user.name,
+      email: user.email,
+      role: user.role.toLowerCase() as UserFormState["role"],
+      status: user.status,
+    });
     setShowEditDialog(true);
   };
 
-  const handleDeleteUser = (user: User) => {
+  const handleOpenDeleteUser = (user: User) => {
     setSelectedUser(user);
     setShowDeleteDialog(true);
+  };
+
+  const handleCreateUser = async () => {
+    if (!newUserForm.name || !newUserForm.email || !newUserForm.password) {
+      toast.error("Completa nombre, email y contrasena");
+      return;
+    }
+    try {
+      const resp = await api.post("/admin/users/", {
+        name: newUserForm.name,
+        email: newUserForm.email,
+        userCode: newUserForm.userCode,
+        role: newUserForm.role,
+        password: newUserForm.password,
+      });
+      setUsers((prev) => [resp.data, ...prev]);
+      setShowAddDialog(false);
+      setNewUserForm({ name: "", email: "", userCode: "", role: "student", password: "" });
+      toast.success("Usuario creado correctamente");
+    } catch (error) {
+      console.error("Error creating user", error);
+      toast.error("No se pudo crear el usuario");
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return;
+    try {
+      const resp = await api.patch(`/admin/users/${selectedUser.id}/`, {
+        name: editUserForm.name,
+        email: editUserForm.email,
+        role: editUserForm.role,
+        status: editUserForm.status,
+      });
+      setUsers((prev) => prev.map((user) => (user.id === selectedUser.id ? resp.data : user)));
+      setShowEditDialog(false);
+      toast.success("Usuario actualizado");
+    } catch (error) {
+      console.error("Error updating user", error);
+      toast.error("No se pudo actualizar el usuario");
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    try {
+      await api.delete(`/admin/users/${selectedUser.id}/`);
+      setUsers((prev) => prev.filter((user) => user.id !== selectedUser.id));
+      setShowDeleteDialog(false);
+      toast.success("Usuario eliminado");
+    } catch (error) {
+      console.error("Error deleting user", error);
+      toast.error("No se pudo eliminar el usuario");
+    }
+  };
+
+  const handleOpenCourseDetails = async (course: Course) => {
+    setSelectedCourseDetails(course);
+    setShowCourseDetailsDialog(true);
+    await loadEnrolledStudents(course.id);
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -879,7 +974,7 @@ const filteredUsers = users.filter((user) =>
                       className="pl-10"
                     />
                   </div>
-                  <Select defaultValue="all">
+                  <Select value={roleFilter} onValueChange={setRoleFilter}>
                     <SelectTrigger className="w-48">
                       <SelectValue placeholder="Filtrar por rol" />
                     </SelectTrigger>
@@ -940,11 +1035,11 @@ const filteredUsers = users.filter((user) =>
                                   >
                                     <Edit className="w-4 h-4" />
                                   </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={() => handleDeleteUser(user)}
-                                  >
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => handleOpenDeleteUser(user)}
+                                    >
                                     <UserX className="w-4 h-4" />
                                   </Button>
                                 </div>
@@ -1195,12 +1290,20 @@ const filteredUsers = users.filter((user) =>
                                     </p>
                                     <p className="text-xs text-gray-500">{c.description}</p>
                                   </div>
-                                  <button
-                                    className="inline-flex items-center rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
-                                    onClick={() => handleDeleteCourse(c.id)}
-                                  >
-                                    Eliminar
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      className="inline-flex items-center rounded bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                                      onClick={() => handleOpenCourseDetails(c)}
+                                    >
+                                      Ver detalles
+                                    </button>
+                                    <button
+                                      className="inline-flex items-center rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
+                                      onClick={() => handleDeleteCourse(c.id)}
+                                    >
+                                      Eliminar
+                                    </button>
+                                  </div>
                                 </div>
 
                                 {/* Asignar profesor */}
@@ -1348,19 +1451,40 @@ const filteredUsers = users.filter((user) =>
           <div className="space-y-4">
             <div>
               <Label>Nombre Completo</Label>
-              <Input placeholder="Juan Pérez" className="mt-2" />
+              <Input
+                placeholder="Juan Perez"
+                className="mt-2"
+                value={newUserForm.name}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
             </div>
             <div>
               <Label>Email Institucional</Label>
-              <Input type="email" placeholder="usuario@espe.edu.ec" className="mt-2" />
+              <Input
+                type="email"
+                placeholder="usuario@espe.edu.ec"
+                className="mt-2"
+                value={newUserForm.email}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, email: e.target.value }))}
+              />
             </div>
             <div>
               <Label>ID de Usuario</Label>
-              <Input placeholder="EST001, DOC001, ADM001" className="mt-2" />
+              <Input
+                placeholder="EST001, DOC001, ADM001"
+                className="mt-2"
+                value={newUserForm.userCode}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, userCode: e.target.value }))}
+              />
             </div>
             <div>
               <Label>Rol</Label>
-              <Select>
+              <Select
+                value={newUserForm.role}
+                onValueChange={(value) =>
+                  setNewUserForm((prev) => ({ ...prev, role: value as UserFormState["role"] }))
+                }
+              >
                 <SelectTrigger className="mt-2">
                   <SelectValue placeholder="Seleccionar rol" />
                 </SelectTrigger>
@@ -1373,17 +1497,20 @@ const filteredUsers = users.filter((user) =>
             </div>
             <div>
               <Label>Contraseña Temporal</Label>
-              <Input type="password" placeholder="••••••••" className="mt-2" />
+              <Input
+                type="password"
+                placeholder="••••••••"
+                className="mt-2"
+                value={newUserForm.password}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))}
+              />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={() => {
-              setShowAddDialog(false);
-              // lógica para crear usuario
-            }}>
+            <Button onClick={handleCreateUser}>
               Agregar Usuario
             </Button>
           </DialogFooter>
@@ -1402,15 +1529,47 @@ const filteredUsers = users.filter((user) =>
             <div className="space-y-4">
               <div>
                 <Label>Nombre Completo</Label>
-                <Input defaultValue={selectedUser.name} className="mt-2" />
+                <Input
+                  className="mt-2"
+                  value={editUserForm.name}
+                  onChange={(e) => setEditUserForm((prev) => ({ ...prev, name: e.target.value }))}
+                />
               </div>
               <div>
                 <Label>Email</Label>
-                <Input type="email" defaultValue={selectedUser.email} className="mt-2" />
+                <Input
+                  type="email"
+                  className="mt-2"
+                  value={editUserForm.email}
+                  onChange={(e) => setEditUserForm((prev) => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Rol</Label>
+                <Select
+                  value={editUserForm.role}
+                  onValueChange={(value) =>
+                    setEditUserForm((prev) => ({ ...prev, role: value as UserFormState["role"] }))
+                  }
+                >
+                  <SelectTrigger className="mt-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="student">Estudiante</SelectItem>
+                    <SelectItem value="teacher">Docente</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Estado</Label>
-                <Select defaultValue={selectedUser.status}>
+                <Select
+                  value={editUserForm.status}
+                  onValueChange={(value) =>
+                    setEditUserForm((prev) => ({ ...prev, status: value as UserFormState["status"] }))
+                  }
+                >
                   <SelectTrigger className="mt-2">
                     <SelectValue />
                   </SelectTrigger>
@@ -1426,10 +1585,7 @@ const filteredUsers = users.filter((user) =>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={() => {
-              setShowEditDialog(false);
-              // lógica para actualizar usuario
-            }}>
+            <Button onClick={handleUpdateUser}>
               Guardar Cambios
             </Button>
           </DialogFooter>
@@ -1454,11 +1610,57 @@ const filteredUsers = users.filter((user) =>
             <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={() => {
-              setShowDeleteDialog(false);
-              // lógica para eliminar usuario
-            }}>
+            <Button variant="destructive" onClick={handleDeleteUser}>
               Eliminar Usuario
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCourseDetailsDialog} onOpenChange={setShowCourseDetailsDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalles del curso</DialogTitle>
+            <DialogDescription>Informacion general e inscritos</DialogDescription>
+          </DialogHeader>
+          {selectedCourseDetails ? (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {selectedCourseDetails.code} - {selectedCourseDetails.name}
+                </p>
+                <p className="text-xs text-gray-500">{selectedCourseDetails.description || "Sin descripcion"}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs font-semibold text-gray-700">Estudiantes inscritos</p>
+                {enrollmentLoadingByCourse[selectedCourseDetails.id] ? (
+                  <p className="text-xs text-gray-500 mt-2">Cargando...</p>
+                ) : (
+                  <div className="mt-2 space-y-2 max-h-40 overflow-auto">
+                    {(enrolledStudentIdsByCourse[selectedCourseDetails.id] ?? []).length === 0 ? (
+                      <p className="text-xs text-gray-500">Sin estudiantes inscritos.</p>
+                    ) : (
+                      students
+                        .filter((student) =>
+                          (enrolledStudentIdsByCourse[selectedCourseDetails.id] ?? []).includes(student.id)
+                        )
+                        .map((student) => (
+                          <div key={student.id} className="flex items-center justify-between text-xs">
+                            <span className="text-gray-700">{student.name}</span>
+                            <span className="text-gray-400">{student.email}</span>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">Selecciona un curso para ver detalles.</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCourseDetailsDialog(false)}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -749,33 +749,187 @@ def student_report(request):
 # ADMIN VIEWS
 # ==========================================
 
-@api_view(['GET'])
+def _build_admin_user_payload(user):
+    role = 'student'
+    user_code = f"USR{str(user.id).zfill(3)}"
+    is_active = True
+    if hasattr(user, 'profile'):
+        role = user.profile.role
+        user_code = user.profile.user_code
+        is_active = user.profile.is_active
+
+    return {
+        'id': user.id,
+        'userCode': user_code,
+        'name': f"{user.first_name} {user.last_name}".strip() or user.username,
+        'email': user.email,
+        'role': role.capitalize(),
+        'status': 'active' if is_active else 'inactive',
+        'lastConnection': 'Hace 5 minutos',
+        'registrationDate': str(user.date_joined.date())
+    }
+
+
+def _split_full_name(full_name):
+    if not full_name:
+        return '', ''
+    parts = full_name.strip().split()
+    if len(parts) == 1:
+        return parts[0], ''
+    return parts[0], ' '.join(parts[1:])
+
+
+def _build_unique_username(base_username):
+    base = (base_username or 'user').strip()
+    candidate = base
+    counter = 1
+    while User.objects.filter(username=candidate).exists():
+        candidate = f"{base}{counter}"
+        counter += 1
+    return candidate
+
+
+def _generate_user_code(role, user_id):
+    role_map = {
+        'student': 'EST',
+        'teacher': 'DOC',
+        'admin': 'ADM'
+    }
+    prefix = role_map.get(role, 'USR')
+    user_code = f"{prefix}{str(user_id).zfill(3)}"
+    counter = 1
+    while UserProfile.objects.filter(user_code=user_code).exists():
+        user_code = f"{prefix}{str(user_id).zfill(3)}-{counter}"
+        counter += 1
+    return user_code
+
+
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def admin_users(request):
     if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
         return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
-    
-    users = User.objects.all()
-    users_data = []
-    for user in users:
-        role = 'student'
-        user_code = f"USR{str(user.id).zfill(3)}"
-        if hasattr(user, 'profile'):
-            role = user.profile.role
-            user_code = user.profile.user_code
-        
-        users_data.append({
-            'id': user.id,
-            'userCode': user_code,
-            'name': f"{user.first_name} {user.last_name}".strip() or user.username,
-            'email': user.email,
-            'role': role.capitalize(),
-            'status': 'active',
-            'lastConnection': 'Hace 5 minutos',
-            'registrationDate': str(user.date_joined.date())
-        })
-    
-    return Response(users_data)
+
+    if request.method == 'GET':
+        users = User.objects.all()
+        users_data = [_build_admin_user_payload(user) for user in users]
+        return Response(users_data)
+
+    full_name = request.data.get('name') or request.data.get('fullName') or ''
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    email = request.data.get('email')
+    password = request.data.get('password')
+    role = (request.data.get('role') or 'student').lower()
+    user_code = request.data.get('userCode') or request.data.get('user_code')
+    username = request.data.get('username')
+
+    if not email or not password:
+        return Response({'detail': 'Email and password required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if role not in ['student', 'teacher', 'admin']:
+        return Response({'detail': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if User.objects.filter(email=email).exists():
+        return Response({'detail': 'User with this email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not first_name and not last_name:
+        first_name, last_name = _split_full_name(full_name)
+
+    username_base = username or (email.split('@')[0] if email else '') or (user_code or '')
+    username = _build_unique_username(username_base)
+
+    user = User.objects.create_user(
+        username=username,
+        email=email,
+        password=password,
+        first_name=first_name or '',
+        last_name=last_name or ''
+    )
+
+    if not user_code:
+        user_code = _generate_user_code(role, user.id)
+    if UserProfile.objects.filter(user_code=user_code).exists():
+        user_code = _generate_user_code(role, user.id)
+
+    UserProfile.objects.create(
+        user=user,
+        role=role,
+        user_code=user_code,
+        is_active=True
+    )
+
+    return Response(_build_admin_user_payload(user), status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'PATCH', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def admin_user_detail(request, user_id):
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+        return Response({'detail': 'Only admins can access this'}, status=status.HTTP_403_FORBIDDEN)
+
+    user = get_object_or_404(User, id=user_id)
+
+    if request.method == 'GET':
+        return Response(_build_admin_user_payload(user))
+
+    if request.method in ['PATCH', 'PUT']:
+        data = request.data
+        full_name = data.get('name') or data.get('fullName')
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
+        email = data.get('email')
+        role = data.get('role')
+        status_value = data.get('status')
+        user_code = data.get('userCode') or data.get('user_code')
+
+        if email and User.objects.filter(email=email).exclude(id=user.id).exists():
+            return Response({'detail': 'User with this email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not first_name and not last_name and full_name is not None:
+            first_name, last_name = _split_full_name(full_name)
+
+        if first_name is not None:
+            user.first_name = first_name
+        if last_name is not None:
+            user.last_name = last_name
+        if email is not None:
+            user.email = email
+        user.save()
+
+        profile, _ = UserProfile.objects.get_or_create(
+            user=user,
+            defaults={
+                'role': 'student',
+                'user_code': _generate_user_code('student', user.id),
+                'is_active': True
+            }
+        )
+
+        if role:
+            role_value = role.lower()
+            if role_value not in ['student', 'teacher', 'admin']:
+                return Response({'detail': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
+            profile.role = role_value
+
+        if status_value is not None:
+            if isinstance(status_value, bool):
+                profile.is_active = status_value
+            elif str(status_value).lower() in ['active', 'inactive']:
+                profile.is_active = str(status_value).lower() == 'active'
+            else:
+                return Response({'detail': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if user_code:
+            if UserProfile.objects.filter(user_code=user_code).exclude(user=user).exists():
+                return Response({'detail': 'user_code already exists'}, status=status.HTTP_400_BAD_REQUEST)
+            profile.user_code = user_code
+
+        profile.save()
+        return Response(_build_admin_user_payload(user))
+
+    user.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])

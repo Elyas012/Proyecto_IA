@@ -32,6 +32,7 @@ urlpatterns = router.urls + [
     path('teacher/students/', teacher_students, name='teacher-students'),
     path('teacher/overview/', teacher_overview, name='teacher-overview'),
     path('admin/users/', admin_users, name='admin-users'),
+    path('admin/users/<int:user_id>/', views.admin_user_detail, name='admin-user-detail'),
     path('admin/active-sessions/', admin_active_sessions, name='admin-active-sessions'),
     path('admin/courses/', views.admin_courses),
     path('admin/courses/<int:course_id>/', views.admin_course_detail),
