@@ -47,7 +47,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ material }) => {
                         console.log('ReactPlayer listo');
                         setReady(true);
                     }}
-                    onError={(e) => {
+                    onError={(e: unknown) => {
                         console.error('Error en ReactPlayer:', e);
                     }}
                 />
