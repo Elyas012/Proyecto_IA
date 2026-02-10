@@ -2,9 +2,10 @@ import { Download, Video, PlayCircle } from 'lucide-react';
 import React, { useState } from 'react';
 import { resolveApiUrl } from '../lib/api';
 import dynamic from 'next/dynamic';
+import type { ReactPlayerProps } from 'react-player';
 
 // Importar ReactPlayer dinámicamente para evitar problemas con SSR
-const ReactPlayer = dynamic(() => import('react-player'), { ssr: false });
+const ReactPlayer = dynamic<ReactPlayerProps>(() => import('react-player/lazy'), { ssr: false });
 
 interface VideoPlayerProps {
     material: {
