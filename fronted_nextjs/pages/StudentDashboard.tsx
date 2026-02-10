@@ -1201,6 +1201,16 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                       playsInline
                       onLoadedMetadata={() => console.log('📹 Video cargado en cámara minimizada')}
                     />
+                    {isCameraActive && (
+                      <WebcamCapture
+                        videoRef={videoRef}
+                        isAnalyzing={isAnalyzing}
+                        isCameraActive={isCameraActive}
+                        onFeaturesExtracted={handleFeaturesExtracted}
+                        onAttentionUpdate={handleAttentionUpdate}
+                        classSessionId={selectedCourse?.id ?? null}
+                      />
+                    )}
                     {!streamRef.current && (
                       <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-cyan-900 to-cyan-700">
                         <div className="text-center text-white p-2">
