@@ -33,7 +33,7 @@ export function StudentReport({ onBack }: StudentReportProps) {
   // Student info (fetched)
   const [user, setUser] = useState<any | null>(null);
   const [courses, setCourses] = useState<any[]>([]);
-  const [studentInfo, setStudentInfo] = useState<any>({ name: 'Estudiante', career: '-', semester: '-' });
+  const [studentInfo, setStudentInfo] = useState<any>({ name: 'Estudiante' });
 
   // Report state
   const [reportLoading, setReportLoading] = useState(false);
@@ -68,8 +68,6 @@ export function StudentReport({ onBack }: StudentReportProps) {
       setUser(resp.data);
       setStudentInfo({
         name: `${resp.data.first_name || resp.data.username || resp.data.email}`,
-        career: resp.data.career || '-',
-        semester: resp.data.semester || '-',
       });
     } catch (err) {
       setUser(null);
@@ -126,26 +124,7 @@ export function StudentReport({ onBack }: StudentReportProps) {
     fetchReport();
   }, [selectedPeriod, selectedSubject]);
 
-  // Fallbacks for heatmap and classComparison when not provided
-  useEffect(() => {
-    if (!heatmapData || heatmapData.length === 0) {
-      setHeatmapData([
-        { day: "Lun", morning: 75, afternoon: 82, evening: 70 },
-        { day: "Mar", morning: 80, afternoon: 85, evening: 78 },
-        { day: "Mié", morning: 72, afternoon: 88, evening: 75 },
-        { day: "Jue", morning: 85, afternoon: 90, evening: 82 },
-        { day: "Vie", morning: 88, afternoon: 86, evening: 80 },
-      ]);
-    }
-
-    if (!classComparison || classComparison.length === 0) {
-      setClassComparison([
-        { metric: "Atención", student: 78, classAvg: 75 },
-        { metric: "Asistencia", student: 92, classAvg: 85 },
-        { metric: "Participación", student: 70, classAvg: 72 },
-      ]);
-    }
-  }, []);
+  // No fallbacks - use only real data from API
 
   const generateReportHTML = (data: any) => {
     const s = data.summary || {};
@@ -474,7 +453,7 @@ export function StudentReport({ onBack }: StudentReportProps) {
         {/* Student Info Card */}
         <Card className="mb-8 border-l-4 border-l-orange-500">
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Estudiante</p>
                 <p className="text-gray-900">{studentInfo.name}</p>
@@ -482,16 +461,8 @@ export function StudentReport({ onBack }: StudentReportProps) {
               <div>
                 <p className="text-sm text-gray-600 mb-1">Materia</p>
                 <p className="text-gray-900">
-                  {courses.find((s: any) => String(s.id) === selectedSubject)?.name}
+                  {courses.find((s: any) => String(s.id) === selectedSubject)?.name || 'Todos los cursos'}
                 </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Carrera</p>
-                <p className="text-gray-900">{studentInfo.career}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Semestre</p>
-                <p className="text-gray-900">{studentInfo.semester}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Fecha de generación</p>
