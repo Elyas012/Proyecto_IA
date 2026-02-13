@@ -936,7 +936,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                 </CardHeader>
                 <CardContent>
                   {teacherCourses.length > 0 ? (
-                    <Select value={selectedCourseForConfig?.toString() || ""} onValueChange={(val) => setSelectedCourseFor Config(parseInt(val))}>
+                    <Select value={selectedCourseForConfig?.toString() || ""} onValueChange={(val) => setSelectedCourseForConfig(parseInt(val))}>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Selecciona un curso..." />
                       </SelectTrigger>
@@ -1057,7 +1057,7 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                           min="5"
                           max="60"
                           value={pomodoroConfig.max_work_duration}
-                          onChange=(e) => setPomodoroConfig({...pomodoroConfig, max_work_duration: parseInt(e.target.value) || 20})}
+                          onChange={(e) => setPomodoroConfig({...pomodoroConfig, max_work_duration: parseInt(e.target.value) || 20})}
                           className="w-full"
                         />
                         <p className="text-xs text-gray-500 mt-1">Tiempo máximo con extensiones. Defecto: 20 min</p>
