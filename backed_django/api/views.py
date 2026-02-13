@@ -637,6 +637,16 @@ def pomodoro_events(request):
                 pomodoro_session.work_elapsed_time_on_pause = elapsed_work_time
                 pomodoro_session.current_cycle_number += 1
 
+            if event_type == 'auto_pause' and reason == 'work_session_ended':
+                avg_attention = (
+                    AttentionRecord.objects.filter(student=request.user, class_session=cs)
+                    .aggregate(a=Avg('attention_score'))
+                    .get('a')
+                    or 0
+                )
+                if avg_attention >= 85:
+                    pomodoro_session.work_duration_minutes += 3
+
             pomodoro_session.status = 'paused'
             pomodoro_session.current_cycle_start_time = timezone.now()
             pomodoro_session.last_distraction_time = None 
