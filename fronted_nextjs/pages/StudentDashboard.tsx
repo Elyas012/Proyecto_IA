@@ -380,6 +380,32 @@ useEffect(() => {
             event_type: 'auto_pause', 
             reason: 'work_session_ended',
             session_number: nextSession
+          }).then(response => {
+            // Handle notifications from backend
+            if (response.data.notification) {
+              const notif = response.data.notification;
+              const duration = response.data.current_duration;
+              
+              if (notif === 'time_extended') {
+                toast.success(`🎉 ¡Excelente! +3 minutos ganados. Ahora: ${duration} min`, {
+                  duration: 5000
+                });
+              } else if (notif === 'max_reached') {
+                toast.warning(`🏆 ¡Límite alcanzado! Máximo de 20 min. Sesión finalizada.`, {
+                  duration: 6000
+                });
+                setIsPomodoroActive(false);
+              } else if (notif === 'already_max') {
+                toast.info('✅ Ya estás en el máximo (20 min). Sesión finalizada.', {
+                  duration: 5000
+                });
+                setIsPomodoroActive(false);
+              } else if (notif === 'duration_reset') {
+                toast.info('🔄 Descanso largo completado. Duración reseteada a 5 min.', {
+                  duration: 5000
+                });
+              }
+            }
           }).catch(error => console.error('Error posting auto_pause event:', error));
           
           return nextSession % 4 === 0 ? getLongBreakSeconds() : getShortBreakSeconds();
@@ -1284,6 +1310,11 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
                       <span className="text-xs text-gray-600">Tiempo:</span>
                       <span className="text-lg font-bold text-cyan-600">
                         {formatPomodoroTime(pomodoroTimeLeft)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-center mt-1">
+                      <span className="text-[10px] text-gray-500 italic">
+                        Máx: 20 min (con extensiones)
                       </span>
                     </div>
                     <div className="flex gap-2">

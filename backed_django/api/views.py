@@ -632,11 +632,15 @@ def pomodoro_events(request):
             else:
                 pomodoro_session.current_cycle_start_time = timezone.now()
         elif event_type == 'auto_pause' or event_type == 'manual_pause':
+            notification_message = None
+            should_end_session = False
+
             if pomodoro_session.status == 'working' and pomodoro_session.current_cycle_start_time:
                 elapsed_work_time = timezone.now() - pomodoro_session.current_cycle_start_time
                 pomodoro_session.work_elapsed_time_on_pause = elapsed_work_time
                 pomodoro_session.current_cycle_number += 1
 
+            # Adaptive logic: increase work duration if attention >= 85%
             if event_type == 'auto_pause' and reason == 'work_session_ended':
                 avg_attention = (
                     AttentionRecord.objects.filter(student=request.user, class_session=cs)
@@ -645,18 +649,54 @@ def pomodoro_events(request):
                     or 0
                 )
                 if avg_attention >= 85:
-                    pomodoro_session.work_duration_minutes += 3
+                    old_duration = pomodoro_session.work_duration_minutes
+                    # Limit to maximum 20 minutes
+                    if old_duration < 20:
+                        pomodoro_session.work_duration_minutes = min(old_duration + 3, 20)
+                        if pomodoro_session.work_duration_minutes == 20:
+                            notification_message = 'max_reached'
+                            should_end_session = True  # End session when reaching 20 min
+                        else:
+                            notification_message = 'time_extended'
+                    else:
+                        notification_message = 'already_max'
+                        should_end_session = True  # End session if already at max
 
-            pomodoro_session.status = 'paused'
-            pomodoro_session.current_cycle_start_time = timezone.now()
-            pomodoro_session.last_distraction_time = None 
+            # Reset to 5 min after long break (every 4 cycles)
+            if pomodoro_session.current_cycle_number % 4 == 0 and pomodoro_session.current_cycle_number > 0:
+                if pomodoro_session.work_duration_minutes != 5:
+                    pomodoro_session.work_duration_minutes = 5
+                    if not notification_message:
+                        notification_message = 'duration_reset'
+
+            if should_end_session:
+                # End the session automatically
+                pomodoro_session.status = 'idle'
+                pomodoro_session.current_cycle_start_time = None
+                pomodoro_session.work_elapsed_time_on_pause = None
+            else:
+                pomodoro_session.status = 'paused'
+                pomodoro_session.current_cycle_start_time = timezone.now()
+                pomodoro_session.last_distraction_time = None 
         elif event_type == 'end':
             pomodoro_session.status = 'idle'
             pomodoro_session.current_cycle_start_time = None
             pomodoro_session.work_elapsed_time_on_pause = None
         
         pomodoro_session.save()
-        return Response({'id': ev.id, 'event_type': ev.event_type, 'timestamp': ev.timestamp}, status=status.HTTP_201_CREATED)
+        
+        response_data = {
+            'id': ev.id, 
+            'event_type': ev.event_type, 
+            'timestamp': ev.timestamp
+        }
+        
+        # Add notification message if applicable
+        if 'notification_message' in locals() and notification_message:
+            response_data['notification'] = notification_message
+            response_data['current_duration'] = pomodoro_session.work_duration_minutes
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
