@@ -237,3 +237,32 @@ class StudentQuizAttempt(models.Model):
 
     def __str__(self):
         return f"{self.student.username} - {self.quiz.title} - {self.score}"
+
+class PomodoroConfig(models.Model):
+    """Configuración del sistema Pomodoro adaptativo por curso"""
+    course = models.OneToOneField(Course, on_delete=models.CASCADE, related_name='pomodoro_config')
+    
+    # Duraciones básicas (en minutos)
+    initial_work_duration = models.IntegerField(default=5, help_text="Duración inicial del período de trabajo (min)")
+    short_break_duration = models.IntegerField(default=2, help_text="Duración del descanso corto (min)")
+    long_break_duration = models.IntegerField(default=5, help_text="Duración del descanso largo (min)")
+    
+    # Configuración adaptativa
+    attention_threshold = models.IntegerField(default=85, help_text="Porcentaje mínimo de atención para ganar extensión (%)")
+    time_extension = models.IntegerField(default=3, help_text="Minutos adicionales por buena atención (min)")
+    max_work_duration = models.IntegerField(default=20, help_text="Duración máxima del período de trabajo (min)")
+    cycles_before_reset = models.IntegerField(default=4, help_text="Ciclos antes de resetear a duración inicial")
+    
+    # Configuración de distracciones
+    distraction_tolerance_seconds = models.IntegerField(default=30, help_text="Segundos de tolerancia para distracciones en pausa")
+    low_attention_threshold = models.IntegerField(default=50, help_text="Umbral de atención baja que pausa el tiempo (%)")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Configuración Pomodoro - {self.course.code}"
+
+    class Meta:
+        verbose_name = "Configuración Pomodoro"
+        verbose_name_plural = "Configuraciones Pomodoro"

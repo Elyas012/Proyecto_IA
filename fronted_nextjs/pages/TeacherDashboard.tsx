@@ -27,11 +27,13 @@ import {
   X,
   Brain,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Settings,
+  Clock
 } from "lucide-react";
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from "recharts";
 
-type ViewType = "dashboard" | "students" | "stats" | "profile" | "materials";
+type ViewType = "dashboard" | "students" | "stats" | "profile" | "materials" | "pomodoro-config";
 
 interface Student {
   id: string;
@@ -78,6 +80,23 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     name?: string;
   } | null>(null);
   const [overview, setOverview] = useState<{ total_students: number; total_classes: number; average_attention: number } | null>(null);
+
+  // Pomodoro Configuration State
+  const [pomodoroConfig, setPomodoroConfig] = useState({
+    initial_work_duration: 5,
+    short_break_duration: 2,
+    long_break_duration: 5,
+    attention_threshold: 85,
+    time_extension: 3,
+    max_work_duration: 20,
+    cycles_before_reset: 4,
+    distraction_tolerance_seconds: 30,
+    low_attention_threshold: 50,
+  });
+  const [selectedCourseForConfig, setSelectedCourseForConfig] = useState<number | null>(null);
+  const [teacherCourses, setTeacherCourses] = useState<any[]>([]);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
 
   // Cargar perfil del docente y estudiantes desde la API
   useEffect(() => {
@@ -169,7 +188,6 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
   );
 
   const [sessions, setSessions] = useState<any[]>([]);
-  const [teacherCourses, setTeacherCourses] = useState<any[]>([]);
   
   useEffect(() => {
     const loadSessions = async () => {
@@ -187,6 +205,46 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
     };
     loadSessions();
   }, []);
+
+  // Load Pomodoro Configuration
+  const loadPomodoroConfig = async (courseId: number) => {
+    setConfigLoading(true);
+    try {
+      const response = await api.get(`/teacher/pomodoro-config/?course_id=${courseId}`);
+      setPomodoroConfig(response.data);
+    } catch (error) {
+      console.error('Error loading pomodoro config:', error);
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+
+  // Save Pomodoro Configuration
+  const savePomodoroConfig = async () => {
+    if (!selectedCourseForConfig) {
+      alert('Selecciona un curso primero');
+      return;
+    }
+    setConfigSaving(true);
+    try {
+      await api.post('/teacher/pomodoro-config/', {
+        course_id: selectedCourseForConfig,
+        ...pomodoroConfig
+      });
+      alert('✅ Configuración guardada exitosamente');
+    } catch (error) {
+      console.error('Error saving pomodoro config:', error);
+      alert('❌ Error al guardar la configuración');
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedCourseForConfig) {
+      loadPomodoroConfig(selectedCourseForConfig);
+    }
+  }, [selectedCourseForConfig]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
@@ -323,6 +381,25 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                 currentView === "materials" ? "text-orange-500" : "group-hover:text-orange-500"
               }`} />
               <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Materiales</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setCurrentView("pomodoro-config");
+                setIsMobileMenuOpen(false);
+                if (isSidebarCollapsed) setIsSidebarCollapsed(false);
+              }}
+              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-4'} py-3 rounded-lg transition-all duration-200 group ${
+                currentView === "pomodoro-config"
+                  ? "bg-gray-800 text-white border-l-4 border-orange-500"
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white border-l-4 border-transparent"
+              }`}
+              title="Config. Pomodoro"
+            >
+              <Clock className={`w-5 h-5 flex-shrink-0 ${
+                currentView === "pomodoro-config" ? "text-orange-500" : "group-hover:text-orange-500"
+              }`} />
+              <span className={`${isSidebarCollapsed ? 'hidden' : 'block'} text-sm font-medium`}>Config. Pomodoro</span>
             </button>
 
             <button
@@ -837,6 +914,243 @@ export function TeacherDashboard({ onLogout }: TeacherDashboardProps) {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          )}
+
+          {/* Pomodoro Configuration View */}
+          {currentView === "pomodoro-config" && (
+            <div>
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent mb-2">
+                  <Clock className="w-8 h-8 inline-block mr-2" />
+                  Configuración Pomodoro Adaptativo
+                </h1>
+                <p className="text-gray-600">Personaliza los parámetros del sistema Pomodoro para tus cursos</p>
+              </div>
+
+              {/* Course Selector */}
+              <Card className="mb-6 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="text-orange-700">1. Selecciona un Curso</CardTitle>
+                  <CardDescription>Elige el curso que deseas configurar</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {teacherCourses.length > 0 ? (
+                    <Select value={selectedCourseForConfig?.toString() || ""} onValueChange={(val) => setSelectedCourseFor Config(parseInt(val))}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Selecciona un curso..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teacherCourses.map((course) => (
+                          <SelectItem key={course.id} value={course.id.toString()}>
+                            {course.code} - {course.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-gray-500">No tienes cursos asignados aún</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Configuration Form */}
+              {selectedCourseForConfig && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Duraciones Básicas */}
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="text-orange-700">⏱️ Duraciones Básicas</CardTitle>
+                      <CardDescription>Tiempos iniciales para trabajo y descansos</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Duración Inicial de Trabajo (minutos)
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="60"
+                          value={pomodoroConfig.initial_work_duration}
+                          onChange={(e) => setPomodoroConfig({...pomodoroConfig, initial_work_duration: parseInt(e.target.value) || 5})}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Valor por defecto: 5 minutos</p>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Duración Descanso Corto (minutos)
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="30"
+                          value={pomodoroConfig.short_break_duration}
+                          onChange={(e) => setPomodoroConfig({...pomodoroConfig, short_break_duration: parseInt(e.target.value) || 2})}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Valor por defecto: 2 minutos</p>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Duración Descanso Largo (minutos)
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="60"
+                          value={pomodoroConfig.long_break_duration}
+                          onChange={(e) => setPomodoroConfig({...pomodoroConfig, long_break_duration: parseInt(e.target.value) || 5})}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Valor por defecto: 5 minutos</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Configuración Adaptativa */}
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="text-orange-700">🎯 Sistema Adaptativo</CardTitle>
+                      <CardDescription>Parámetros para recompensas por atención</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Umbral de Atención (%)
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={pomodoroConfig.attention_threshold}
+                          onChange={(e) => setPomodoroConfig({...pomodoroConfig, attention_threshold: parseInt(e.target.value) || 85})}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Atención mínima para ganar tiempo extra. Defecto: 85%</p>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Extensión de Tiempo (minutos)
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="15"
+                          value={pomodoroConfig.time_extension}
+                          onChange={(e) => setPomodoroConfig({...pomodoroConfig, time_extension: parseInt(e.target.value) || 3})}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Minutos adicionales por buena atención. Defecto: 3 min</p>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Duración Máxima (minutos)
+                        </label>
+                        <Input
+                          type="number"
+                          min="5"
+                          max="60"
+                          value={pomodoroConfig.max_work_duration}
+                          onChange=(e) => setPomodoroConfig({...pomodoroConfig, max_work_duration: parseInt(e.target.value) || 20})}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Tiempo máximo con extensiones. Defecto: 20 min</p>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Ciclos Antes de Reset
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="10"
+                          value={pomodoroConfig.cycles_before_reset}
+                          onChange={(e) => setPomodoroConfig({...pomodoroConfig, cycles_before_reset: parseInt(e.target.value) || 4})}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Ciclos antes de volver a duración inicial. Defecto: 4 (0=nunca)</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Configuración de Distracciones */}
+                  <Card className="shadow-lg lg:col-span-2">
+                    <CardHeader>
+                      <CardTitle className="text-orange-700">⚠️ Control de Distracciones</CardTitle>
+                      <CardDescription>Parámetros para detección y manejo de distracciones</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Tolerancia en Descanso (segundos)
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="120"
+                          value={pomodoroConfig.distraction_tolerance_seconds}
+                          onChange={(e) => setPomodoroConfig({...pomodoroConfig, distraction_tolerance_seconds: parseInt(e.target.value) || 30})}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Segundos permitidos de distracción en pausas. Defecto: 30s</p>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Umbral Atención Baja (%)
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={pomodoroConfig.low_attention_threshold}
+                          onChange={(e) => setPomodoroConfig({...pomodoroConfig, low_attention_threshold: parseInt(e.target.value) || 50})}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Atención mínima para que el tiempo corra. Defecto: 50%</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Save Button */}
+                  <div className="lg:col-span-2">
+                    <Card className="shadow-lg bg-gradient-to-r from-orange-50 to-amber-50">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-1">¿Listo para guardar?</h3>
+                            <p className="text-sm text-gray-600">Los cambios se aplicarán inmediatamente para todos los estudiantes</p>
+                          </div>
+                          <Button 
+                            onClick={savePomodoroConfig}
+                            disabled={configSaving}
+                            className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white px-8 py-6 text-lg font-semibold shadow-lg"
+                          >
+                            {configSaving ? 'Guardando...' : '💾 Guardar Configuración'}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
+
+              {!selectedCourseForConfig && (
+                <Card className="shadow-lg">
+                  <CardContent className="p-12 text-center">
+                    <Clock className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-700 mb-2">Selecciona un curso para configurar</h3>
+                    <p className="text-gray-500">Elige un curso del menú superior para personalizar su configuración Pomodoro</p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </main>

@@ -32,6 +32,7 @@ urlpatterns = router.urls + [
     # Teacher & Admin
     path('teacher/students/', teacher_students, name='teacher-students'),
     path('teacher/overview/', teacher_overview, name='teacher-overview'),
+    path('teacher/pomodoro-config/', views.pomodoro_config, name='teacher-pomodoro-config'),
     path('admin/users/', admin_users, name='admin-users'),
     path('admin/users/<int:user_id>/', views.admin_user_detail, name='admin-user-detail'),
     path('admin/active-sessions/', admin_active_sessions, name='admin-active-sessions'),

@@ -43,7 +43,7 @@ import requests
 from .models import (
     Message, Course, ClassSession, StudentCourse, AttentionRecord, UserProfile, 
     CourseMaterial, PomodoroSession, PomodoroEvent, FeatureRecord, 
-    Quiz, Question, StudentQuizAttempt
+    Quiz, Question, StudentQuizAttempt, PomodoroConfig
 )
 from .serializers import (
     MessageSerializer, CourseSerializer, ClassSessionSerializer, 
@@ -611,6 +611,22 @@ def pomodoro_events(request):
         except ClassSession.DoesNotExist:
             return Response({'detail': 'Class session not found'}, status=status.HTTP_404_NOT_FOUND)
         
+        # Obtener configuración del Pomodoro para este curso
+        config, _ = PomodoroConfig.objects.get_or_create(
+            course=cs.course,
+            defaults={
+                'initial_work_duration': 5,
+                'short_break_duration': 2,
+                'long_break_duration': 5,
+                'attention_threshold': 85,
+                'time_extension': 3,
+                'max_work_duration': 20,
+                'cycles_before_reset': 4,
+                'distraction_tolerance_seconds': 30,
+                'low_attention_threshold': 50,
+            }
+        )
+        
         ev = PomodoroEvent.objects.create(
             student=request.user,
             class_session=cs,
@@ -621,7 +637,11 @@ def pomodoro_events(request):
         pomodoro_session, created = PomodoroSession.objects.get_or_create(
             student=request.user,
             class_session=cs,
-            defaults={'status': 'idle'}
+            defaults={
+                'status': 'idle',
+                'work_duration_minutes': config.initial_work_duration,
+                'pause_duration_minutes': config.short_break_duration,
+            }
         )
 
         if event_type == 'start':
@@ -640,7 +660,7 @@ def pomodoro_events(request):
                 pomodoro_session.work_elapsed_time_on_pause = elapsed_work_time
                 pomodoro_session.current_cycle_number += 1
 
-            # Adaptive logic: increase work duration if attention >= 85%
+            # Adaptive logic: increase work duration if attention >= threshold
             if event_type == 'auto_pause' and reason == 'work_session_ended':
                 avg_attention = (
                     AttentionRecord.objects.filter(student=request.user, class_session=cs)
@@ -648,24 +668,29 @@ def pomodoro_events(request):
                     .get('a')
                     or 0
                 )
-                if avg_attention >= 85:
+                if avg_attention >= config.attention_threshold:
                     old_duration = pomodoro_session.work_duration_minutes
-                    # Limit to maximum 20 minutes
-                    if old_duration < 20:
-                        pomodoro_session.work_duration_minutes = min(old_duration + 3, 20)
-                        if pomodoro_session.work_duration_minutes == 20:
+                    # Limit to maximum configured duration
+                    if old_duration < config.max_work_duration:
+                        pomodoro_session.work_duration_minutes = min(
+                            old_duration + config.time_extension, 
+                            config.max_work_duration
+                        )
+                        if pomodoro_session.work_duration_minutes == config.max_work_duration:
                             notification_message = 'max_reached'
-                            should_end_session = True  # End session when reaching 20 min
+                            should_end_session = True  # End session when reaching max
                         else:
                             notification_message = 'time_extended'
                     else:
                         notification_message = 'already_max'
                         should_end_session = True  # End session if already at max
 
-            # Reset to 5 min after long break (every 4 cycles)
-            if pomodoro_session.current_cycle_number % 4 == 0 and pomodoro_session.current_cycle_number > 0:
-                if pomodoro_session.work_duration_minutes != 5:
-                    pomodoro_session.work_duration_minutes = 5
+            # Reset to initial duration after long break (configurable cycles)
+            if (config.cycles_before_reset > 0 and 
+                pomodoro_session.current_cycle_number % config.cycles_before_reset == 0 and 
+                pomodoro_session.current_cycle_number > 0):
+                if pomodoro_session.work_duration_minutes != config.initial_work_duration:
+                    pomodoro_session.work_duration_minutes = config.initial_work_duration
                     if not notification_message:
                         notification_message = 'duration_reset'
 
@@ -1574,3 +1599,100 @@ def submit_quiz(request):
         'feedback': feedback,
         'passed': final_score >= 7
     })
+
+# ==========================================
+# POMODORO CONFIGURATION VIEWS
+# ==========================================
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def pomodoro_config(request):
+    """
+    GET: Obtiene la configuración del Pomodoro para un curso específico
+    POST: Crea o actualiza la configuración del Pomodoro
+    """
+    if request.method == 'GET':
+        course_id = request.query_params.get('course_id')
+        if not course_id:
+            return Response({'detail': 'course_id required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            return Response({'detail': 'Course not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Obtener o crear configuración con valores por defecto
+        config, created = PomodoroConfig.objects.get_or_create(
+            course=course,
+            defaults={
+                'initial_work_duration': 5,
+                'short_break_duration': 2,
+                'long_break_duration': 5,
+                'attention_threshold': 85,
+                'time_extension': 3,
+                'max_work_duration': 20,
+                'cycles_before_reset': 4,
+                'distraction_tolerance_seconds': 30,
+                'low_attention_threshold': 50,
+            }
+        )
+        
+        return Response({
+            'course_id': course.id,
+            'course_name': course.name,
+            'initial_work_duration': config.initial_work_duration,
+            'short_break_duration': config.short_break_duration,
+            'long_break_duration': config.long_break_duration,
+            'attention_threshold': config.attention_threshold,
+            'time_extension': config.time_extension,
+            'max_work_duration': config.max_work_duration,
+            'cycles_before_reset': config.cycles_before_reset,
+            'distraction_tolerance_seconds': config.distraction_tolerance_seconds,
+            'low_attention_threshold': config.low_attention_threshold,
+        })
+    
+    elif request.method == 'POST':
+        course_id = request.data.get('course_id')
+        if not course_id:
+            return Response({'detail': 'course_id required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            return Response({'detail': 'Course not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Verificar que el usuario sea docente del curso
+        if not ClassSession.objects.filter(course=course, teacher=request.user).exists():
+            return Response({'detail': 'Only course teachers can modify configuration'}, 
+                          status=status.HTTP_403_FORBIDDEN)
+        
+        # Obtener o crear configuración
+        config, created = PomodoroConfig.objects.get_or_create(course=course)
+        
+        # Actualizar campos
+        config.initial_work_duration = request.data.get('initial_work_duration', config.initial_work_duration)
+        config.short_break_duration = request.data.get('short_break_duration', config.short_break_duration)
+        config.long_break_duration = request.data.get('long_break_duration', config.long_break_duration)
+        config.attention_threshold = request.data.get('attention_threshold', config.attention_threshold)
+        config.time_extension = request.data.get('time_extension', config.time_extension)
+        config.max_work_duration = request.data.get('max_work_duration', config.max_work_duration)
+        config.cycles_before_reset = request.data.get('cycles_before_reset', config.cycles_before_reset)
+        config.distraction_tolerance_seconds = request.data.get('distraction_tolerance_seconds', config.distraction_tolerance_seconds)
+        config.low_attention_threshold = request.data.get('low_attention_threshold', config.low_attention_threshold)
+        
+        config.save()
+        
+        return Response({
+            'detail': 'Configuration updated successfully',
+            'config': {
+                'initial_work_duration': config.initial_work_duration,
+                'short_break_duration': config.short_break_duration,
+                'long_break_duration': config.long_break_duration,
+                'attention_threshold': config.attention_threshold,
+                'time_extension': config.time_extension,
+                'max_work_duration': config.max_work_duration,
+                'cycles_before_reset': config.cycles_before_reset,
+                'distraction_tolerance_seconds': config.distraction_tolerance_seconds,
+                'low_attention_threshold': config.low_attention_threshold,
+            }
+        }, status=status.HTTP_200_OK)
