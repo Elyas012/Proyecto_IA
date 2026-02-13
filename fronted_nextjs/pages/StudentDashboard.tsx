@@ -637,7 +637,20 @@ const handleAttentionUpdate = useCallback((score: number, level: 'high' | 'mediu
     return "bg-red-100 border-red-300";
   };
 
-  const handleSelectCourse = (course: Course) => {
+  const handleSelectCourse = async (course: Course) => {
+    // Si había un curso anterior y Pomodoro activo, resetear backend primero
+    if (selectedCourse && selectedCourse.id !== course.id) {
+      try {
+        await api.post('/student/pomodoro-reset/', {
+          class_session_id: selectedCourse.id
+        });
+        console.log('✅ Pomodoro session reset for previous course');
+      } catch (err) {
+        console.warn('Could not reset previous pomodoro session:', err);
+      }
+    }
+
+    // Ahora cambiar al nuevo curso y resetear estado frontend
     setSelectedCourse(course);
     setIsPomodoroActive(false);
     setPomodoroSession(1);

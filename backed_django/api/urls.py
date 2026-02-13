@@ -25,6 +25,7 @@ urlpatterns = router.urls + [
     path('student/pomodoro-events/', pomodoro_events, name='pomodoro-events'),
     path('student/pomodoro-metrics/', pomodoro_metrics, name='pomodoro-metrics'),
     path('student/pomodoro-status/', views.pomodoro_status, name='pomodoro-status'),
+    path('student/pomodoro-reset/', views.pomodoro_reset, name='pomodoro-reset'),
     path('student/feature-records/', feature_records, name='feature-records'),
     path('student/report/', views.student_report, name='student-report'),
     

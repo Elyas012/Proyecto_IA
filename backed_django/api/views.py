@@ -658,6 +658,33 @@ def pomodoro_events(request):
         pomodoro_session.save()
         return Response({'id': ev.id, 'event_type': ev.event_type, 'timestamp': ev.timestamp}, status=status.HTTP_201_CREATED)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def pomodoro_reset(request):
+    """
+    Resetea completamente el PomodoroSession al cambiar de curso.
+    Elimina la sesión existente para forzar un inicio limpio.
+    """
+    class_session_id = request.data.get('class_session_id')
+    if not class_session_id:
+        return Response({'detail': 'class_session_id required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        cs = ClassSession.objects.get(id=class_session_id)
+    except ClassSession.DoesNotExist:
+        return Response({'detail': 'Class session not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Eliminar el PomodoroSession existente para este estudiante y sesión
+    deleted_count, _ = PomodoroSession.objects.filter(
+        student=request.user,
+        class_session=cs
+    ).delete()
+    
+    return Response({
+        'detail': 'Pomodoro session reset successfully',
+        'deleted': deleted_count > 0
+    }, status=status.HTTP_200_OK)
+
     events = PomodoroEvent.objects.filter(student=request.user).order_by('-timestamp')[:50]
     serializer = __import__('api.serializers', fromlist=['PomodoroEventSerializer']).PomodoroEventSerializer(events, many=True)
     return Response(serializer.data)
